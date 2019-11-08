@@ -1,11 +1,24 @@
 import pandas as pd
+import numpy as np
+
+# store what the last test that the student took
+test_label = np.nan
+
+def last_valid(y):
+	global test_label
+	if y.last_valid_index() is None:
+		test_label = np.nan
+		return np.nan
+	else:
+		test_label = y.last_valid_index()
+		return y[y.last_valid_index()]
 
 df = pd.read_excel('scores.xlsx', 'monsoon19', header=0)
 # username from client
 name = 'rathi.kashi_ug20'
 
 # returns an array of true(for matches)/false(if not)
-indices = df['students'].str.match(name)
+indices = df['Students'].str.match(name)
 # dataframe with rows where the student column matches the username
 search_results  = df[indices]
 
@@ -20,4 +33,6 @@ elif search_results.shape[0] > 1:
 	# continue listening for usernames until sees 'exit'
 # one match found
 else:
-	print search_results
+	# array with row index and value
+	latest_score = search_results.apply(last_valid, axis=1)
+	print "Your score in", test_label, "is " + str(latest_score[1]) + "."
