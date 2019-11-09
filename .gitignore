@@ -1,2 +1,7 @@
-.DS_Store
 ~$scores.xlsx
+.DS_Store
+.venv
+[Bb]in/
+[Ii]nclude/
+[Ll]ib/
+pyvenv.cfg
