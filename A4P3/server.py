@@ -1,3 +1,24 @@
+##
+ # server.py
+ # Nov 9, 2019
+ #
+ # deepraj.pandey_ug20@ashoka.edu.in
+ #
+ # TCP server (Course Grade Directory) which allows students in a course
+ # to fetch their latest test scores. Reads the data from an excel file and sends after authentication.
+ # Has a basic (not-secure) authentication procedure for everyone in the course.
+ #
+ # Students use their Ashoka ID to sign up and are given a diceware passphrase on
+ # first access.
+ #
+ # - reads the test scores from scores.xlsx (in the same directory)
+ # - stores all passwords in passwords.json (in the same directory)
+ # - P.S: make sure the usernames in 'Students' column in the sheet is exactly same
+ # as the keys of the json dictionary. AND that all the passwords are initialised to
+ # "not set". The server runs a diceware generator from the EFF long wordlist to generate
+ # a passphrase during first login.
+ ##
+
 import socket as skt
 import pandas as pd
 import numpy as np

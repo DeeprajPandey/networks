@@ -1,3 +1,15 @@
+##
+ # client.py
+ # Nov 9, 2019
+ #
+ # deepraj.pandey_ug20@ashoka.edu.in
+ #
+ # The client program for the Course Grade Directory server. Communication alternates
+ # between client and server.
+ #
+ # Note: Type "HELP" at first prompt to read the server spec-sheet.
+ ##
+
 import socket as skt
 
 try:
