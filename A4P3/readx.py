@@ -10,8 +10,9 @@ import json
 
 ### Globals ###
 # username & password from client
+# if first time, leave password empty
 name = 'rathi.kashi_ug20'
-entered_pass = 'frittletop'
+entered_pass = 'unpiloted-java-magnetic-luridness-nastiness'
 
 # store what the last test that the student took
 test_label = np.nan
@@ -47,7 +48,7 @@ def last_valid(y):
 
 
 # check if the user entered anything
-if math.isnan(name) or math.isnan(entered_pass):
+if name == 'None' or entered_pass == 'None':
 	print "Please enter a valid username and/or password.\n\
 	Your username is your Ashoka ID and your password must have\
 	been assigned to you on your first login on this system.\
@@ -60,7 +61,7 @@ search_results  = data[indices]
 
 # if the name wasn't found in monsoon19 or password list
 if search_results.empty or\
-name not in passwords.keys:
+name not in passwords.keys():
 	print("Invalid username or student not in the course. Try again!")
 	# continue listening for usernames until sees 'exit'
 
@@ -74,15 +75,21 @@ search_results.shape[0] > 1:
 # one match for `username` found
 else:
 	if passwords[name] == "not set":
-		# call pass_generator() and store it in the sheet
-		new_pass = pass_generator(5)
+		print "Hello, " + str(name) + "!"
+		print "Welcome to Course Grade Directory.\n"
+		print "You are accessing the service for the first time. Your generated password is"
+		# call get_passphrase() and store it in the sheet
+		new_pass = get_passphrase(5)
 		passwords[name] = new_pass
 		# print it for the user
-		print "Your password is", new_pass
-		print "Store it in a secure place. If you forget your password, contact course faculty."
+		print new_pass
+		print "\nStore it in a secure place. You won't be able to access your scores \
+without it.\nIf you forget your password, contact the course faculty to get a new password assigned."
 		# we don't need this sticking around anymore
 		new_pass = np.nan
 	elif entered_pass == passwords[name]:
+		print "Hello, " + str(name) + "!"
+		print "Welcome back to Course Grade Directory.\n"
 		# array with row index and value
 		latest_score = search_results.apply(last_valid, axis=1)
 		print "Your score in", test_label, "is " + str(latest_score[1]) + "."
