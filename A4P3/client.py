@@ -19,5 +19,5 @@ while True:
 		break
 	data = input("Us: ")
 	clientsocket.send(data.encode())
-print("Server closed connection. Closing socket.")
+print("\nServer closed connection. Closing socket.")
 clientsocket.close()

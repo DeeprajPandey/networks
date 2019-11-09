@@ -1,6 +1,4 @@
 import socket as skt
-import errno
-import time
 
 ### Utilities ###
 ### Function to generate an n-word diceware password ###
@@ -30,25 +28,6 @@ invalid_usr_p = "\nIncorrect username or password. Try again.\n\n"
 
 inworks = "Course Grade Directory is in works."
 
-
-def safe_send(remote, msg):
-	try:
-		remote.send(msg.encode())
-		time.sleep(1)
-	except skt.error as e:
-		if isinstance(e.args, tuple):
-			print("errno is %d" % e[0])
-			if e[0] == errno.EPIPE:
-				# remote peer disconnected
-				print("Detected remote disconnect")
-			else:
-				# determine and handle different error
-				pass
-		else:
-			print("socket error ", e)
-		remote.close()
-
-
 # Checks if the entered username is in the course
 # returns true if username is in score sheet
 def is_valid_user(username):
@@ -60,25 +39,25 @@ def is_valid_user(username):
 # is noticed
 # c: client socket
 def anomaly(c):
-	safe_send(c, spec_string)
+	c.send(spec_string.encode())
 
 # Sends help text when incorrect usr or passw is received
 # Is called when username or password is invalid
 def incorrect_creds(client):
 	prompt = invalid_usr_p + spec_string
-	safe_send(client, prompt)
+	client.send(prompt.encode())
 
 # Sends prompt when ready to accept username
 # c: client socket
 def ask_usr(c):
 	prompt = "Send Username."
-	safe_send(c, prompt)
+	c.send(prompt.encode())
 
 # Sends prompt when ready to accept password
 # c: client socket
 def ask_passw(c):
 	prompt = "Send Password."
-	safe_send(c, prompt)
+	c.send(prompt.encode())
 
 # generates a passphrase and assigns it to client with username
 def assign_passw(client, username):
@@ -89,7 +68,7 @@ Your generated password is\n" + str(new_pass) + "\n\
 Enter this password when prompted."
 	# TODO: add it to passwords dict for corresponding username
 
-	safe_send(c, prompt)
+	c.send(prompt.encode())
 
 # sends scores to client
 # Note: this should be called after proper authentication
@@ -104,7 +83,7 @@ def send_scores(client, username):
 Welcome  back to Course Grade Directory.\nYour score in "\
 + str(test) + " is " + str(score) + "\nYou are\
 now logged out."
-	safe_send(client, prompt)
+	client.send(prompt.encode())
 
 # Authenticates user
 # c: client socket
@@ -112,17 +91,17 @@ def auth(c):
 	end = False
 	usr = "None"
 	passw = "None"
-	safe_send(c, welcome)
+	c.send(welcome.encode())
 	key = c.recv(1024).decode()
 	while not end:
 		if key == "USER":
 			ask_usr(c)
 			usr = c.recv(1024).decode()
 			if not usr:
-				safe_send(c, warn)
+				c.send(warn.encode())
 				key = "HELP"
 			else:
-				safe_send(c, "Next...")
+				c.send("Next...".encode())
 				key = c.recv(1024).decode()
 
 		elif key == "PASS":
@@ -136,7 +115,7 @@ def auth(c):
 			ask_passw(c)
 			passw = c.recv(1024).decode()
 			if not passw:
-				safe_send(c, warn)
+				c.send(warn.encode())
 				key = "HELP"
 			else:
 				if is_valid_user(usr) and passw == passwords[usr]:
@@ -149,7 +128,7 @@ def auth(c):
 					key = c.recv(1024).decode()
 
 		elif key == "END":
-			safe_send(c, "Bye")
+			c.send("Bye".encode())
 			return
 
 		# control comes here when key is either HELP or anything else
