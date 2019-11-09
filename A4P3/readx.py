@@ -2,6 +2,19 @@ import pandas as pd
 import numpy as np
 # to check for NaN
 import math
+# for password generation
+import random,sys
+
+### Generate an n-word diceware password ###
+# wordlist is the EFF diceware long word list
+wordlist = [ln.split()[1] for ln in open('./wordlist')]
+def get_passphrase(n):
+	# use the wordlist array we made above
+	global wordlist
+	# `n` words joined by -
+	pp = '-'.join(random.SystemRandom().choice(wordlist) for i in range(n))
+	return pp
+
 
 # store what the last test that the student took
 test_label = np.nan
@@ -28,6 +41,8 @@ if math.isnan(name) or math.isnan(entered_pass):
 	been assigned to you on your first login on this system.\
 	Please contact your course faculty if you have lost your password."
 
+
+### read the excel file and import data as dataframes ###
 data = pd.read_excel('scores.xlsx', 'monsoon19', header=0)
 # usernames are indices in this data frame
 passwords = pd.read_excel('scores.xlsx', 'passwords', header=0, index_col=0)
@@ -49,7 +64,7 @@ elif search_results.shape[0] > 1 and\
 	print("There are duplicate records for this username. Contact your faculty.")
 	# continue listening for usernames until sees 'exit'
 
-# one match found
+# one match for `username` found
 else:
 	if passwords.loc[name]['stored'] == 'not set':
 		# call pass_generator() and store it in the sheet
