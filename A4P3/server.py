@@ -9,7 +9,7 @@ import json
 ### Data ###
 # store what the last test that the student took
 test_label = np.nan
-search_results
+search_results = np.nan
 passwords = {}
 pass_assgn_flag = 0
 # all passwords in a dict
@@ -109,35 +109,34 @@ def assign_passw(client, username):
 	prompt = "Hello, " + str(username) + "!\n\
 You are accessing the service for the first time. \
 Your generated password is\n" + str(new_pass) + "\n\
-Enter this password when prompted."
+Enter this password when prompted...\n"
 	# TODO: add it to passwords dict for corresponding username
 	passwords[username] = new_pass
 	pass_assgn_flag = 1
 	# we don't need this sticking around anymore
 	new_pass = np.nan
-	c.send(prompt.encode())
+	client.send(prompt.encode())
 
 # searches for the latest test taken by `username` and returns that
 # along with the score in that test
 def search_test_scores(username):
+	global test_label
+	# array with the row index and the test score
 	latest_score = search_results.apply(last_valid_score, axis=1)
 	latest_test = test_label
 	# clear the global variable for further use
 	test_label = "None"
-	return latest_test, latest_score
+	return latest_test, latest_score[1]
 
 # sends scores to client
 # Note: this should be called after proper authentication
 def send_scores(client, username):
 	# TODO: DEFINE LATEST SCORE MECHANISM
 	# TODO: get scores from the sheet and add to prompt
-
-	test = "in works"
-	score = "in works"
-	# test, score = search_test_scores(username)
+	test, score = search_test_scores(username)
 	prompt = "Hello, " + str(username) + "!\n\
 Welcome  back to Course Grade Directory.\nYour score in "\
-+ str(test) + " is " + str(score) + "\nYou are\
++ str(test) + " is " + str(score) + "\nYou are \
 now logged out."
 	client.send(prompt.encode())
 
@@ -179,6 +178,7 @@ def auth(c):
 					send_scores(c, usr)
 					usr = "None"
 					passw = "None"
+					key = c.recv(1024).decode()
 				else:
 					incorrect_creds(c)
 					key = c.recv(1024).decode()
