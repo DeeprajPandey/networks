@@ -1,4 +1,24 @@
 import socket as skt
+import pandas as pd
+import numpy as np
+# for password generation
+import random,sys
+# passwords stored in json file
+import json
+
+### Data ###
+# store what the last test that the student took
+test_label = np.nan
+search_results
+passwords = {}
+pass_assgn_flag = 0
+# all passwords in a dict
+with open("passwords.json", 'r') as istream:
+	passwords = json.load(istream)
+
+# read the excel file and import data as a dataframe
+all_data = pd.read_excel('scores.xlsx', 'monsoon19', header=0)
+
 
 ### Utilities ###
 ### Function to generate an n-word diceware password ###
@@ -9,6 +29,16 @@ def get_passphrase(n):
 	pp = '-'.join(random.SystemRandom().choice(wordlist) for i in range(n))
 	return pp
 
+### Returns the last valid test score in dfObject ###
+# and stores the test label in the global test_label variable
+def last_valid_score(y):
+	global test_label
+	if y.last_valid_index() is None:
+		test_label = np.nan
+		return np.nan
+	else:
+		test_label = y.last_valid_index()
+		return y[y.last_valid_index()]
 
 
 welcome = "Welcome to Course Grade Directory!"
@@ -28,12 +58,26 @@ invalid_usr_p = "\nIncorrect username or password. Try again.\n\n"
 
 inworks = "Course Grade Directory is in works."
 
+### Server Utils ###
+
 # Checks if the entered username is in the course
 # returns true if username is in score sheet
 def is_valid_user(username):
+	global search_results
 	# TODO: check if username is in the sheet
+	# str.match() returns an array of true(for matches)/false(if not)
+	indices = all_data['Students'].str.match(username)
+	# dataframe with rows where the student column matches the username
+	search_results  = all_data[indices]
 
-	return False
+	# will return false if there are multiple
+	# or zero instances of the name in the monsoon19 sheet
+	# or if the name isn't in password list
+	if search_results.shape[0] != 1 or\
+username not in passwords.keys():
+		return False
+	else:
+		return True
 
 # Sends server specs. Is called when undeterministic behaviour
 # is noticed
@@ -67,8 +111,20 @@ You are accessing the service for the first time. \
 Your generated password is\n" + str(new_pass) + "\n\
 Enter this password when prompted."
 	# TODO: add it to passwords dict for corresponding username
-
+	passwords[username] = new_pass
+	pass_assgn_flag = 1
+	# we don't need this sticking around anymore
+	new_pass = np.nan
 	c.send(prompt.encode())
+
+# searches for the latest test taken by `username` and returns that
+# along with the score in that test
+def search_test_scores(username):
+	latest_score = search_results.apply(last_valid_score, axis=1)
+	latest_test = test_label
+	# clear the global variable for further use
+	test_label = "None"
+	return latest_test, latest_score
 
 # sends scores to client
 # Note: this should be called after proper authentication
@@ -153,5 +209,8 @@ def Main():
 
 		auth(client)
 		client.close()
+		# dump all updated passwords to the json file
+		with open("passwords.json", 'w') as ostream:
+			json.dump(passwords, ostream)
 if __name__ == '__main__':
 	Main()
