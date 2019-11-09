@@ -13,5 +13,12 @@ port = 8001
 clientsocket.connect((host_ip, port))
 
 clientsocket.send("Hello from the other side.".encode())
-print(clientsocket.recv(1024).decode())
+while True:
+	from_server = clientsocket.recv(1024).decode()
+	print(from_server, flush=True)
+	if from_server == "Bye":
+		break
+	data = input()
+	clientsocket.send(data.encode())
+print("Server closed connection. Closing socket.")
 clientsocket.close()
