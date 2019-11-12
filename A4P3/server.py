@@ -147,7 +147,7 @@ def search_test_scores(username):
 	latest_test = test_label
 	# clear the global variable for further use
 	test_label = "None"
-	return latest_test, latest_score[1]
+	return latest_test, int(latest_score[latest_score.index[0]])
 
 # sends scores to client
 # Note: this should be called after proper authentication
