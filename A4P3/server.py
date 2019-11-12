@@ -26,6 +26,18 @@ import numpy as np
 import secrets
 # passwords stored in json file
 import json
+# for sending email to first-time log in
+import smtplib, ssl
+# prompt for admin password to send the otp email
+from getpass import getpass
+
+### Globals ###
+# email smtp setup
+PORT = 465  # For SSL
+SMTP_SERV = "smtp.gmail.com"
+ADMIN_EMAIL = "deepraj.pandey_ug20+sndr@ashoka.edu.in"
+### TODO: First get server up and running and then set up smtp
+PSWD = getpass(prompt="Your email password (to send OTP to new users): ", stream = None)
 
 ### Data ###
 # store what the last test that the student took
@@ -42,6 +54,19 @@ all_data = pd.read_excel('scores.xlsx', 'monsoon19', header=0)
 
 
 ### Utilities ###
+### Function to send the otp to the user email ###
+def send_otp(user_email, otp):
+	sub = "Subject: Your Course Grade Directory OTP\n\n"
+	body_beg = "Enter this OTP when prompted.\n"
+	body_end = "\n\nBest,\nCourse Faculty."
+ 
+	message = sub + body_beg + str(otp) + body_end
+ 
+	context = ssl.create_default_context()
+	with smtplib.SMTP_SSL(SMTP_SERV, PORT, context=context) as mail_server:
+		mail_server.login(ADMIN_EMAIL, PSWD)
+		mail_server.sendmail(ADMIN_EMAIL, user_email, message)
+
 ### Function to generate an n-word diceware password ###
 def get_passphrase(n):
 	# wordlist is the EFF diceware long word list
@@ -124,14 +149,71 @@ def ask_passw(c):
 	prompt = "Send Password."
 	c.send(prompt.encode())
 
+
+
+####### Blueprint of how this function should look like. #######
+## TODO: Fix the state management in auth() to check if password was assigned
+## while making sure that invalid username and wrong password "fail together"
+
+# # generates a passphrase and assigns it to client with username
+# def assign_passw(client, username):
+# 	useremail = username + "@ashoka.edu.in"
+# 	otp = 4323
+# 	print("Sending OTP to " + useremail + "\n")
+# 	send_otp(useremail, otp)
+
+# 	otp_prompt = "Hello, " + str(username) + "!\n\
+# You are accessing the service for the first time, and you will be assigned a\
+# password for accessing your grades\n\
+# An OTP has been sent to your Ashoka Email ID. It will be valid for 5 minutes.\n\
+# Enter the OTP below for authentication"
+# 	client.send(otp_prompt.encode())
+# 	entered_otp = client.recv(1024).decode()
+
+# 	# This boolean value stores if entered otp is valid
+# 	validated = True
+
+# 	# generate and send passphrase only if identity is authenticated
+# 	if (validated):
+# 		new_pass = get_passphrase(5)
+# 		prompt = "Your generated password is\n" + \
+# 	str(new_pass) + "\n\
+# 	Enter this password when prompted...\n"
+# 		# TODO: add it to passwords dict for corresponding username
+# 		passwords[username] = new_pass
+# 		pass_assgn_flag = 1
+# 		# we don't need this sticking around anymore
+# 		new_pass = np.nan
+# 		client.send(prompt.encode())
+# 		return True
+# 	else:
+# 		prompt = "Invalid OTP. Please try authenticating again."
+# 		client.send(prompt.encode())
+# 		return False
+
+
+
+
+
+
+
 # generates a passphrase and assigns it to client with username
 def assign_passw(client, username):
+	useremail = username + "@ashoka.edu.in"
+	otp = 4323
+	print("Sending OTP to " + useremail + "\n")
+	send_otp(useremail, otp)
+
 	new_pass = get_passphrase(5)
 	prompt = "Hello, " + str(username) + "!\n\
 You are accessing the service for the first time. \
 Your generated password is\n" + str(new_pass) + "\n\
 Enter this password when prompted...\n"
-	# TODO: add it to passwords dict for corresponding username
+	# TODO: this sits in the dictionary Fix it.
+	# say, client is connected and a new user accessed, password is sent
+	# but user enters wrong password. It doesn't generate a new password and
+	# expects the same. This happens because the dictionary doesn't have "not set"
+	# anymore. Don't assign this new_pass unless the user enters it.
 	passwords[username] = new_pass
 	pass_assgn_flag = 1
 	# we don't need this sticking around anymore
@@ -188,6 +270,8 @@ def auth(c):
 				if passwords[usr] == "not set":
 					# assign a password
 					assign_passw(c, usr)
+			### TODO: Look here. Server sends data twice and user receives too.
+			## Check if this is happening because client receives 1024 byte chunks.
 			ask_passw(c)
 			passw = c.recv(1024).decode()
 			if not passw:
