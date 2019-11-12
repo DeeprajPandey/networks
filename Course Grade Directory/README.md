@@ -45,8 +45,10 @@ In another terminal session, run the client and start communicating (send `HELP`
 ```
 
 ### To Do
-- [ ] Support multi-threading for handling clients
-- [ ] Move away from plain text passwords and explore salting
+- [ ] Add 2FA via OTP sent over email when registering new users
+- [ ] Store a salted hash instead of plaintext passwords
+- [ ] Extend 2FA to support time based authenticators (e.g. Google Authenticator)
+- [ ] Add multi-threading for handling clients
 
 ### License
 CC BY-NC 4.0 International
