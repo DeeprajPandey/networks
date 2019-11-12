@@ -5,3 +5,4 @@
 [Ii]nclude/
 [Ll]ib/
 pyvenv.cfg
+../passwords.json
