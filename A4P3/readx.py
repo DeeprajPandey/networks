@@ -3,7 +3,7 @@ import numpy as np
 # to check for NaN
 import math
 # for password generation
-import random,sys
+import secrets
 # passwords stored in json file
 import json
 
@@ -31,7 +31,7 @@ def get_passphrase(n):
 	# wordlist is the EFF diceware long word list
 	wordlist = [ln.split()[1] for ln in open('./wordlist')]
 	# `n` words joined by -
-	pp = '-'.join(random.SystemRandom().choice(wordlist) for i in range(n))
+	pp = '-'.join(secrets.choice(wordlist) for i in range(n))
 	return pp
 
 

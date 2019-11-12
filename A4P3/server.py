@@ -23,7 +23,7 @@ import socket as skt
 import pandas as pd
 import numpy as np
 # for password generation
-import random,sys
+import secrets
 # passwords stored in json file
 import json
 
@@ -47,7 +47,7 @@ def get_passphrase(n):
 	# wordlist is the EFF diceware long word list
 	wordlist = [ln.split()[1] for ln in open('./wordlist')]
 	# `n` words joined by -
-	pp = '-'.join(random.SystemRandom().choice(wordlist) for i in range(n))
+	pp = '-'.join(secrets.choice(wordlist) for i in range(n))
 	return pp
 
 ### Returns the last valid test score in dfObject ###
