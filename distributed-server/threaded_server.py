@@ -1,14 +1,17 @@
 import socket as skt
-
 from _thread import*
 import threading
-
 from datetime import datetime
 
 request_queue = list()
-
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
+IP = skt.gethostname()
+PORT = 8000
+
+serversocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
+serversocket.setsockopt(skt.SOL_SOCKET, skt.SO_REUSEADDR, 1)
+serversocket.bind((IP, PORT))
 
 def swap(i, j):
     if i < 10 and j < 10:
@@ -20,6 +23,21 @@ def swap(i, j):
 
 # Use a re-entrant lock in case same thread tries to acquire lock multiple times
 q_lock = threading.RLock()
+
+def update_nums(rq1, rq2):
+
+    request_queue.append(rq1)
+    request_queue.append(rq2)
+
+    request_queue = sorted(request_queue, key=itemgetter(1))
+
+    for i in range(len(request_queue)):
+        tuple_to_swap = i[0]
+        temp = nums[tuple_to_swap[0]]
+        nums[tuple_to_swap[0]] = nums[tuple_to_swap[1]]
+        nums[tuple_to_swap[1]] = temp
+    request_queue=[]
+    return nums
 
 def process_client_request(clientsock, addr):
     # make a string of the current list of numbers
@@ -34,11 +52,9 @@ def process_client_request(clientsock, addr):
         # Transform string into list [i, j]
         data = data.split(" ")
         rn = datetime.now().timestamp()
-
         # tuple of ([i, j], timestamp) representing when server received
         # request to swap ith and jth indices
         swap_req = (data, rn)
-
         # Acquire lock to append to the request queue
         q_lock.acquire()
         # add a  to request queue
@@ -52,23 +68,21 @@ def process_client_request(clientsock, addr):
     # returning from function kills the thread
     print("Thread closed. Current queue is: {}\n\n".format(str(request_queue)))
 
-def Main():
-    IP = '10.1.16.202'
-    PORT = 8000
+def sync_mode():
+    
 
-    serversocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
-    serversocket.setsockopt(skt.SOL_SOCKET, skt.SO_REUSEADDR, 1)
-    serversocket.bind((IP, PORT))
+
+def Main():
     serversocket.listen(7)
     print("Server is listening...\n")
 
     while True:
         (client, address) = serversocket.accept()
-
         print("Connected to client ", address[0], ":", address[1])
         start_new_thread(process_client_request, (client, address))
         
     serversocket.close()
+
 
 if __name__ == '__main__':
     Main()
