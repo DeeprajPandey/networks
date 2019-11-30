@@ -4,26 +4,24 @@ import threading
 from datetime import datetime
 import pickle
 import schedule
+import time
 
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
-HOST_IP = skt.gethostname()
-S1_IP = "10.1.0.100"
-S2_IP = "10.1.0.100"
+IP = "10.1.16.202"
+S1_IP = "10.1.21.15"
+S2_IP = "10.1.17.123"
 PORT = 8000
 
 # Counter to keep track of the number of times we have sent our request twice
-int SENT_CTR = 0;
+SENT_CTR = 0
 # TODO: corner case: if s1 requests twice because s3 didn't request
 # check which server is asking (set.unique())
 
 serversocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 serversocket.setsockopt(skt.SOL_SOCKET, skt.SO_REUSEADDR, 1)
 serversocket.bind((IP, PORT))
-
-
-clientsocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
 
 def swap(i, j):
@@ -90,29 +88,45 @@ def process_client_request(clientsock, addr):
 
 #header and server ip
 def sync_mode():
+    toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     header="S1"
-    clientsocket.connect((S1_IP,PORT))
+    toserver1.connect((S1_IP,PORT))
+    print("Connected to S1")
     #send identifying that i am a server
-    clientsocket.send(header.encode())
+    toserver1.send(header.encode())
+    print("Request sent to S1")
     #receive the requestq
-    s_rq=clientsocket.recv(1024).decode()
-    clientsocket.close()
+    s_rq=pickle.loads(toserver1.recv(1024).decode())
+
+    toserver1.close()
+    print("Closed connection with S1")
+
+    toserver2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     header="S2"
-    clientsocket.connect((S2_IP,PORT))
+    toserver2.connect((S2_IP,PORT))
+    print("Connected to S2")
     #send identifying that i am a server
-    clientsocket.send(header.encode())
+    toserver2.send(header.encode())
+    print("Request sent to S2")
     #receive the requestq
-    s_rq.append(clientsocket.recv(1024).decode())
-    clientsocket.close()
+    s_rq.append(pickle.loads(toserver2.recv(1024).decode()))
+    toserver2.close()
 
     update_nums(s_rq)
+
+def run_forever():
+    time.sleep(10)
+    while True:
+        schedule.run_pending()
 
 def Main():
     serversocket.listen(7)
     print("Server is listening...\n")
     schedule.every(15).seconds.do(sync_mode())
+
+    start_new_thread(run_forever)
 
     #Start listening to clients
     while True:
