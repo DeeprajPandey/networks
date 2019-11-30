@@ -13,6 +13,11 @@ S1_IP = "10.1.0.100"
 S2_IP = "10.1.0.100"
 PORT = 8000
 
+# Counter to keep track of the number of times we have sent our request twice
+int SENT_CTR = 0;
+# TODO: corner case: if s1 requests twice because s3 didn't request
+# check which server is asking (set.unique())
+
 serversocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 serversocket.setsockopt(skt.SOL_SOCKET, skt.SO_REUSEADDR, 1)
 serversocket.bind((IP, PORT))
@@ -34,6 +39,8 @@ q_lock = threading.RLock()
 
 def update_nums(rq1):
 
+    global nums
+
     request_queue.append(rq1)
 
     request_queue = sorted(request_queue, key=itemgetter(1))
@@ -42,9 +49,9 @@ def update_nums(rq1):
         temp = nums[tuple_to_swap[0]]
         nums[tuple_to_swap[0]] = nums[tuple_to_swap[1]]
         nums[tuple_to_swap[1]] = temp
-    request_queue=[]
-
-    return nums
+    if SENT_CTR == 2:
+        request_queue=[]
+        SENT_CTR = 0
 
 def process_client_request(clientsock, addr):
     # make a string of the current list of numbers
@@ -70,7 +77,10 @@ def process_client_request(clientsock, addr):
         print("Client swap request added to queue.\n")
         q_lock.release()
     elif "S" in data:
+        ret_obj = pickle.dumps(request_queue)
         #send to S1 or S2 depending
+        clientsock.send(ret_obj.encode())
+        SENT_CTR = SENT_CTR + 1
     else:
         print("Need data! Closing connection with {}\n".format(addr))
     clientsock.close()
