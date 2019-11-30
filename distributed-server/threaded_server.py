@@ -88,7 +88,9 @@ def process_client_request(clientsock, addr):
 
 #header and server ip
 def sync_mode():
-    toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    toserver1 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
+
+    received_queue = list()
 
     header="S1"
     toserver1.connect((S1_IP,PORT))
@@ -96,13 +98,17 @@ def sync_mode():
     #send identifying that i am a server
     toserver1.send(header.encode())
     print("Request sent to S1")
+
     #receive the requestq
-    s_rq=pickle.loads(toserver1.recv(1024).decode())
+    data1 = pickle.loads(toserver1.recv(1024))
+    if len(data1) > 0:
+        received_queue = data1
 
     toserver1.close()
     print("Closed connection with S1")
 
-    toserver2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    toserver2 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
     header="S2"
     toserver2.connect((S2_IP,PORT))
@@ -110,23 +116,34 @@ def sync_mode():
     #send identifying that i am a server
     toserver2.send(header.encode())
     print("Request sent to S2")
+
     #receive the requestq
-    s_rq.append(pickle.loads(toserver2.recv(1024).decode()))
+    data2 = pickle.loads(toserver2.recv(1024))
+    if len(data2) > 0:
+        received_queue.append(data1)
+
     toserver2.close()
 
-    update_nums(s_rq)
+    if len(received_queue) > 0:
+        print("Received requests from other servers.\nUpdating local list with all requests")
+        update_nums(s_rq)
+    else:
+        print("No request queues from other servers. Business as usual.")
+
 
 def run_forever():
+    print("Sleeping")
     time.sleep(10)
+    schedule.every(15).seconds.do(sync_mode())
+    print("Calling schedule")
     while True:
         schedule.run_pending()
 
 def Main():
     serversocket.listen(7)
     print("Server is listening...\n")
-    schedule.every(15).seconds.do(sync_mode())
 
-    start_new_thread(run_forever)
+    start_new_thread(run_forever, ())
 
     #Start listening to clients
     while True:
@@ -135,6 +152,6 @@ def Main():
         start_new_thread(process_client_request, (client, address))
     serversocket.close()
 
-
 if __name__ == '__main__':
     Main()
+
