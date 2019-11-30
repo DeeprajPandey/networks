@@ -2,6 +2,7 @@ import socket as skt
 from _thread import*
 import threading
 from datetime import datetime
+from operator import itemgetter
 import pickle
 import schedule
 import time
@@ -38,6 +39,7 @@ q_lock = threading.RLock()
 def update_nums(rq1):
 
     global nums
+    global request_queue
 
     request_queue.append(rq1)
 
@@ -52,16 +54,20 @@ def update_nums(rq1):
         SENT_CTR = 0
 
 def process_client_request(clientsock, addr):
-    # make a string of the current list of numbers
-    number_list = " ".join(str(num) for num in nums)
-    # send the list to the client
-    clientsock.send(number_list.encode())
+    global SENT_CTR
 
-    # Expecting "i j" from client now
+    
     data = clientsock.recv(1024).decode()
     data=str(data)
     print("data: " + data)
     if "S" not in data:
+        # make a string of the current list of numbers
+        number_list = " ".join(str(num) for num in nums)
+        # send the list to the client
+        clientsock.send(number_list.encode())
+
+        # Expecting "i j" from client now
+        data = clientsock.recv(1024).decode()
         # Transform string into list [i, j]
         data = data.split(" ")
         rn = datetime.now().timestamp()
@@ -76,8 +82,9 @@ def process_client_request(clientsock, addr):
         q_lock.release()
     elif "S" in data:
         ret_obj = pickle.dumps(request_queue)
+        print(ret_obj)
         #send to S1 or S2 depending
-        clientsock.send(ret_obj.encode())
+        clientsock.send(ret_obj)
         SENT_CTR = SENT_CTR + 1
     else:
         print("Need data! Closing connection with {}\n".format(addr))
@@ -99,8 +106,11 @@ def sync_mode():
     toserver1.send(header.encode())
     print("Request sent to S1")
 
+
+
     #receive the requestq
-    data1 = pickle.loads(toserver1.recv(1024))
+    rec1 = toserver1.recv(1024)
+    data1 = pickle.loads(rec1)
     if len(data1) > 0:
         received_queue = data1
 
@@ -118,7 +128,8 @@ def sync_mode():
     print("Request sent to S2")
 
     #receive the requestq
-    data2 = pickle.loads(toserver2.recv(1024))
+    rec2 = toserver2.recv(1024)
+    data2 = pickle.loads(rec2)
     if len(data2) > 0:
         received_queue.append(data1)
 
@@ -126,15 +137,15 @@ def sync_mode():
 
     if len(received_queue) > 0:
         print("Received requests from other servers.\nUpdating local list with all requests")
-        update_nums(s_rq)
+        update_nums(received_queue)
     else:
         print("No request queues from other servers. Business as usual.")
-
+    return
 
 def run_forever():
     print("Sleeping")
     time.sleep(10)
-    schedule.every(15).seconds.do(sync_mode())
+    schedule.every(15).seconds.do(sync_mode)
     print("Calling schedule")
     while True:
         schedule.run_pending()

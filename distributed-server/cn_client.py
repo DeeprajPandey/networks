@@ -25,6 +25,7 @@ while True:
 		break
 	ip = ip_database.get(choice, "none")
 	clientsocket.connect((ip, port))
+	clientsocket.send("CLIENT".encode())
 	print("Current list:\n", clientsocket.recv(1024).decode())
 	# print("Enter tuple\n")
 	# i, j = raw_input().split()
