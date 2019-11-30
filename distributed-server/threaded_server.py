@@ -54,8 +54,9 @@ def process_client_request(clientsock, addr):
 
     # Expecting "i j" from client now
     data = clientsock.recv(1024).decode()
-    print("data: " + str(data))
-    if data:
+    data=str(data)
+    print("data: " + data)
+    if "S" not in data:
         # Transform string into list [i, j]
         data = data.split(" ")
         rn = datetime.now().timestamp()
@@ -68,6 +69,8 @@ def process_client_request(clientsock, addr):
         request_queue.append(swap_req)
         print("Client swap request added to queue.\n")
         q_lock.release()
+    elif "S" in data:
+        #send to S1 or S2 depending
     else:
         print("Need data! Closing connection with {}\n".format(addr))
     clientsock.close()
