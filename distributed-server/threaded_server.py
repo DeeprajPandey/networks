@@ -9,6 +9,7 @@ request_queue = list()
 
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
+
 def swap(i, j):
     if i < 10 and j < 10:
         nums[i], nums[j] = nums[j], nums[i]
