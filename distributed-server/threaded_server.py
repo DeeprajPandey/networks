@@ -6,13 +6,15 @@ import pickle
 import schedule
 from operator import itemgetter
 import time
-for_sending []
+import os
+
+for_sending = []
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
-IP = "10.1.17.123"
+IP = "10.1.16.202"
 S1_IP = "10.1.21.15"
-S2_IP = "10.1.16.202"
+S2_IP = "10.1.17.123"
 PORT = 8000
 
 # Counter to keep track of the number of times we have sent our request twice
@@ -37,7 +39,7 @@ def swap(indices_to_swap):
         return 0
 
 # Use a re-entrant lock in case same thread tries to acquire lock multiple times
-q_lock = threading.RLock()
+sent_counter_lock = threading.RLock()
 
 def update_nums(received):
     global SENT_CTR
@@ -54,19 +56,23 @@ def update_nums(received):
     for tup in request_queue:
         returnval = swap(tup[0])
     request_queue=[]
-        
+    print("CHECKING SENT_CTR")
+    print(SENT_CTR)
     if SENT_CTR == 2:
+        print("EMPTY\n\n")
         for_sending=[]
         # request_queue=[]
         SENT_CTR = 0
+    print("ENDOF update_nums\n\n")
 
 def process_client_request(clientsock, addr):
+    print("Started client thread {}, PID {}".format(threading.current_thread().name, os.getpid()))
     global SENT_CTR
     global request_queue
     
     data = clientsock.recv(1024).decode()
     data=str(data)
-    print("data: " + data)
+    print("\tdata: " + data)
     if "S" not in data:
         # make a string of the current list of numbers
         number_list = " ".join(str(num) for num in nums)
@@ -85,33 +91,35 @@ def process_client_request(clientsock, addr):
         q_lock.acquire()
         # add a  to request queue
         request_queue.append(swap_req)
-        print("Client swap request added to queue.\n")
+        print("\tClient swap request added to queue.\n")
         q_lock.release()
     elif "S" in data:
         ret_obj = pickle.dumps(for_sending)
-        print(ret_obj)
+        print("\t" + str(for_sending))
         #send to S1 or S2 depending
         clientsock.send(ret_obj)
         SENT_CTR = SENT_CTR + 1
+        print("\tIncremented SENT_CTR: {}".format(SENT_CTR))
     else:
-        print("Need data! Closing connection with {}\n".format(addr))
+        print("\tNeed data! Closing connection with {}\n".format(addr))
     clientsock.close()
 
     # returning from function kills the thread
-    print("Thread closed. Current queue is: {}\n\n".format(str(request_queue)))
+    print("\tThread closed. Current queue is: {}\n\n".format(str(request_queue)))
 
 #header and server ip
 def sync_mode():
+    print("Starting thread {}".format(threading.current_thread().name))
     toserver1 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
     received_queue = list()
 
     header="S1"
     toserver1.connect((S1_IP,PORT))
-    print("Connected to REUEL")
+    print("\tConnected to REUEL\n")
     #send identifying that i am a server
     toserver1.send(header.encode())
-    print("Request sent to REUEL")
+    # print("Request sent to REUEL")
 
 
 
@@ -122,17 +130,17 @@ def sync_mode():
         received_queue = data1
 
     toserver1.close()
-    print("Closed connection with REUEL")
+    # print("Closed connection with REUEL")
 
 
     toserver2 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
     header="S2"
     toserver2.connect((S2_IP,PORT))
-    print("Connected to DEEPRAJ")
+    print("\tConnected to AASTHA")
     #send identifying that i am a server
     toserver2.send(header.encode())
-    print("Request sent to DEEPRAJ")
+    # print("Request sent to AASTHA")
 
     #receive the requestq
     rec2 = toserver2.recv(1024)
@@ -143,17 +151,17 @@ def sync_mode():
     toserver2.close()
 
     if len(received_queue) > 0:
-        print("Received requests from other servers.\nUpdating local list with all requests")
-        print("\n\nPRINTING RECEIE QUEUE: ", received_queue,"\n\n")
+        print("\tReceived requests from other servers.\nUpdating local list with all requests")
+        print("\n\n\tPRINTING RECEIVE QUEUE: ", received_queue,"\n\n")
     else:
-        print("No request queues from other servers. Business as usual.")
+        print("\tNo request queues from other servers. Business as usual.")
     update_nums(received_queue)
     return
 
 def run_forever():
     print("Sleeping")
-    time.sleep(10)
-    schedule.every(15).seconds.do(sync_mode)
+    time.sleep(2)
+    schedule.every(10).seconds.do(sync_mode)
     print("Calling schedule")
     while True:
         schedule.run_pending()
@@ -162,13 +170,13 @@ def Main():
     serversocket.listen(7)
     print("Server is listening...\n")
 
-    start_new_thread(run_forever, ())
+    start_new_thread(run_forever, (), name="scheduler")
 
     #Start listening to clients
     while True:
         (client, address) = serversocket.accept()
         print("Connected to client ", address[0], ":", address[1])
-        start_new_thread(process_client_request, (client, address))
+        start_new_thread(process_client_request, (client, address), name="client_handler")
     serversocket.close()
 
 if __name__ == '__main__':

@@ -9,7 +9,7 @@ clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 port = 8000
 ip_database = {
         "1":"10.1.16.202",
-        "2":"12345",
+        "2":"10.1.21.15",
         "3":"54321"
 } 
 # clientsocket.connect(("10.1.17.123", 8728))
