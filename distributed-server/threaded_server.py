@@ -55,7 +55,7 @@ def update_nums(rq1):
 
 def process_client_request(clientsock, addr):
     global SENT_CTR
-
+    global request_queue
     
     data = clientsock.recv(1024).decode()
     data=str(data)
