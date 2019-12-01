@@ -2,17 +2,17 @@ import socket as skt
 from _thread import*
 import threading
 from datetime import datetime
-from operator import itemgetter
 import pickle
 import schedule
+from operator import itemgetter
 import time
-
+for_sending []
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
-IP = "10.1.16.202"
+IP = "10.1.17.123"
 S1_IP = "10.1.21.15"
-S2_IP = "10.1.17.123"
+S2_IP = "10.1.16.202"
 PORT = 8000
 
 # Counter to keep track of the number of times we have sent our request twice
@@ -24,11 +24,11 @@ serversocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 serversocket.setsockopt(skt.SOL_SOCKET, skt.SO_REUSEADDR, 1)
 serversocket.bind((IP, PORT))
 
-# indices = [i, j]
-def swap(indices):
-	i = indices[0]
-	j = indices[1]
 
+def swap(indices_to_swap):
+    global nums
+    i = int(indices_to_swap[0])
+    j = int(indices_to_swap[1])
     if i < 10 and j < 10:
         nums[i], nums[j] = nums[j], nums[i]
         # successful swap, valid indi
@@ -39,20 +39,25 @@ def swap(indices):
 # Use a re-entrant lock in case same thread tries to acquire lock multiple times
 q_lock = threading.RLock()
 
-def update_nums(rq1):
-
+def update_nums(received):
+    global SENT_CTR
     global nums
     global request_queue
-
-    request_queue.append(rq1)
-    print(request_queue[0])
-    request_queue = sorted(request_queue, key=itemgetter(1))
+    global for_sending
+    if len(request_queue)==0 and len(received)==0:
+        return
+    for_sending = request_queue
+    # print("\n\nRECEIVED:",request_queue,"\n\n")
+    request_queue.extend(received)
     
+    request_queue = sorted(request_queue, key=itemgetter(1))
     for tup in request_queue:
         returnval = swap(tup[0])
+    request_queue=[]
         
     if SENT_CTR == 2:
-        request_queue=[]
+        for_sending=[]
+        # request_queue=[]
         SENT_CTR = 0
 
 def process_client_request(clientsock, addr):
@@ -83,7 +88,7 @@ def process_client_request(clientsock, addr):
         print("Client swap request added to queue.\n")
         q_lock.release()
     elif "S" in data:
-        ret_obj = pickle.dumps(request_queue)
+        ret_obj = pickle.dumps(for_sending)
         print(ret_obj)
         #send to S1 or S2 depending
         clientsock.send(ret_obj)
@@ -103,10 +108,10 @@ def sync_mode():
 
     header="S1"
     toserver1.connect((S1_IP,PORT))
-    print("Connected to Reuel")
+    print("Connected to REUEL")
     #send identifying that i am a server
     toserver1.send(header.encode())
-    print("Request sent to Reuel")
+    print("Request sent to REUEL")
 
 
 
@@ -117,33 +122,32 @@ def sync_mode():
         received_queue = data1
 
     toserver1.close()
-    print("Closed connection with Reuel\n\n")
+    print("Closed connection with REUEL")
 
 
     toserver2 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
     header="S2"
     toserver2.connect((S2_IP,PORT))
-    print("Connected to Aastha")
+    print("Connected to DEEPRAJ")
     #send identifying that i am a server
     toserver2.send(header.encode())
-    print("Request sent to Aastha")
+    print("Request sent to DEEPRAJ")
 
     #receive the requestq
     rec2 = toserver2.recv(1024)
     data2 = pickle.loads(rec2)
     if len(data2) > 0:
-        received_queue.append(data1)
-        print("")
+        received_queue.extend(data1)
 
     toserver2.close()
-    print("Closed connection with Aastha\n\n")
 
     if len(received_queue) > 0:
         print("Received requests from other servers.\nUpdating local list with all requests")
-        update_nums(received_queue)
+        print("\n\nPRINTING RECEIE QUEUE: ", received_queue,"\n\n")
     else:
         print("No request queues from other servers. Business as usual.")
+    update_nums(received_queue)
     return
 
 def run_forever():
@@ -169,4 +173,3 @@ def Main():
 
 if __name__ == '__main__':
     Main()
-
