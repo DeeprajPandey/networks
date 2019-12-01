@@ -57,16 +57,18 @@ def update_nums(received):
         returnval = swap(tup[0])
     request_queue=[]
     print("CHECKING SENT_CTR")
+    sent_counter_lock.acquire()
     print(SENT_CTR)
     if SENT_CTR == 2:
         print("EMPTY\n\n")
         for_sending=[]
         # request_queue=[]
         SENT_CTR = 0
+    sent_counter_lock.release()
     print("ENDOF update_nums\n\n")
 
 def process_client_request(clientsock, addr):
-    print("Started client thread {}, PID {}".format(threading.current_thread().name, os.getpid()))
+    print("Started client thread with PID {}".format(os.getpid()))
     global SENT_CTR
     global request_queue
     
@@ -98,8 +100,11 @@ def process_client_request(clientsock, addr):
         print("\t" + str(for_sending))
         #send to S1 or S2 depending
         clientsock.send(ret_obj)
+
+        sent_counter_lock.acquire()
         SENT_CTR = SENT_CTR + 1
         print("\tIncremented SENT_CTR: {}".format(SENT_CTR))
+        sent_counter_lock.release()
     else:
         print("\tNeed data! Closing connection with {}\n".format(addr))
     clientsock.close()
@@ -109,7 +114,7 @@ def process_client_request(clientsock, addr):
 
 #header and server ip
 def sync_mode():
-    print("Starting thread {}".format(threading.current_thread().name))
+    print("Starting thread with PID {}".format(os.getpid()))
     toserver1 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
     received_queue = list()
@@ -170,13 +175,13 @@ def Main():
     serversocket.listen(7)
     print("Server is listening...\n")
 
-    start_new_thread(run_forever, (), name="scheduler")
+    start_new_thread(run_forever, ())
 
     #Start listening to clients
     while True:
         (client, address) = serversocket.accept()
         print("Connected to client ", address[0], ":", address[1])
-        start_new_thread(process_client_request, (client, address), name="client_handler")
+        start_new_thread(process_client_request, (client, address))
     serversocket.close()
 
 if __name__ == '__main__':
