@@ -17,8 +17,7 @@ S1_IP = "10.1.21.15"
 S2_IP = "10.1.17.123"
 PORT = 8000
 
-# Counter to keep track of the number of times we have sent our request twice
-SENT_CTR = 0
+unique_server_set = set([])
 # TODO: corner case: if s1 requests twice because s3 didn't request
 # check which server is asking (set.unique())
 
@@ -39,10 +38,9 @@ def swap(indices_to_swap):
         return 0
 
 # Use a re-entrant lock in case same thread tries to acquire lock multiple times
-sent_counter_lock = threading.RLock()
+# q_lock = threading.RLock()
 
 def update_nums(received):
-    global SENT_CTR
     global nums
     global request_queue
     global for_sending
@@ -56,20 +54,11 @@ def update_nums(received):
     for tup in request_queue:
         returnval = swap(tup[0])
     request_queue=[]
-    print("CHECKING SENT_CTR")
-    sent_counter_lock.acquire()
-    print(SENT_CTR)
-    if SENT_CTR == 2:
-        print("EMPTY\n\n")
-        for_sending=[]
-        # request_queue=[]
-        SENT_CTR = 0
-    sent_counter_lock.release()
+
     print("ENDOF update_nums\n\n")
 
 def process_client_request(clientsock, addr):
     print("Started client thread with PID {}".format(os.getpid()))
-    global SENT_CTR
     global request_queue
     
     data = clientsock.recv(1024).decode()
@@ -90,21 +79,26 @@ def process_client_request(clientsock, addr):
         # request to swap ith and jth indices
         swap_req = (data, rn)
         # Acquire lock to append to the request queue
-        q_lock.acquire()
+
         # add a  to request queue
         request_queue.append(swap_req)
         print("\tClient swap request added to queue.\n")
-        q_lock.release()
-    elif "S" in data:
-        ret_obj = pickle.dumps(for_sending)
-        print("\t" + str(for_sending))
-        #send to S1 or S2 depending
-        clientsock.send(ret_obj)
 
-        sent_counter_lock.acquire()
-        SENT_CTR = SENT_CTR + 1
-        print("\tIncremented SENT_CTR: {}".format(SENT_CTR))
-        sent_counter_lock.release()
+    elif "S" in data:
+        if data not in unique_server_set:
+            unique_server_set.add(data)
+
+            ret_obj = pickle.dumps(for_sending)
+            print("\t" + str(for_sending))
+            #send to S1 or S2 depending
+            clientsock.send(ret_obj)
+
+        # if it has been sent to two servers already
+        if len(unique_server_set) == 2:
+            print("EMPTY\n\n")
+            for_sending=[]
+            unique_server_set.clear()
+
     else:
         print("\tNeed data! Closing connection with {}\n".format(addr))
     clientsock.close()
