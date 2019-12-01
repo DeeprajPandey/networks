@@ -24,8 +24,11 @@ serversocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 serversocket.setsockopt(skt.SOL_SOCKET, skt.SO_REUSEADDR, 1)
 serversocket.bind((IP, PORT))
 
+# indices = [i, j]
+def swap(indices):
+	i = indices[0]
+	j = indices[1]
 
-def swap(i, j):
     if i < 10 and j < 10:
         nums[i], nums[j] = nums[j], nums[i]
         # successful swap, valid indi
@@ -42,13 +45,12 @@ def update_nums(rq1):
     global request_queue
 
     request_queue.append(rq1)
-
+    print(request_queue[0])
     request_queue = sorted(request_queue, key=itemgetter(1))
-    for i in range(len(request_queue)):
-        tuple_to_swap = i[0]
-        temp = nums[tuple_to_swap[0]]
-        nums[tuple_to_swap[0]] = nums[tuple_to_swap[1]]
-        nums[tuple_to_swap[1]] = temp
+    
+    for tup in request_queue:
+        returnval = swap(tup[0])
+        
     if SENT_CTR == 2:
         request_queue=[]
         SENT_CTR = 0
@@ -101,10 +103,10 @@ def sync_mode():
 
     header="S1"
     toserver1.connect((S1_IP,PORT))
-    print("Connected to S1")
+    print("Connected to Reuel")
     #send identifying that i am a server
     toserver1.send(header.encode())
-    print("Request sent to S1")
+    print("Request sent to Reuel")
 
 
 
@@ -115,25 +117,27 @@ def sync_mode():
         received_queue = data1
 
     toserver1.close()
-    print("Closed connection with S1")
+    print("Closed connection with Reuel\n\n")
 
 
     toserver2 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
     header="S2"
     toserver2.connect((S2_IP,PORT))
-    print("Connected to S2")
+    print("Connected to Aastha")
     #send identifying that i am a server
     toserver2.send(header.encode())
-    print("Request sent to S2")
+    print("Request sent to Aastha")
 
     #receive the requestq
     rec2 = toserver2.recv(1024)
     data2 = pickle.loads(rec2)
     if len(data2) > 0:
         received_queue.append(data1)
+        print("")
 
     toserver2.close()
+    print("Closed connection with Aastha\n\n")
 
     if len(received_queue) > 0:
         print("Received requests from other servers.\nUpdating local list with all requests")
