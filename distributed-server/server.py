@@ -77,7 +77,7 @@ class ThreadedServer():
 		
 		request_queue = sorted(request_queue, key=itemgetter(1))
 		for tup in request_queue:
-			returnval = swap(tup[0])
+			returnval = self.swap(tup[0])
 		request_queue=[]
 
 
@@ -103,7 +103,7 @@ class ThreadedServer():
 
 			# tuple of ([i, j], timestamp) representing when server received
 			# request to swap ith and jth indices
-			swap_req = (data, rn)
+			swap_req = (ij, rn)
 			request_queue.append(swap_req)
 			logging.debug("Client swap request added to queue.\n")
 			# concurrent_req_queue.put(swap_req_item)
@@ -117,11 +117,11 @@ class ThreadedServer():
 				ret_obj = pickle.dumps(temp)
 				logging.debug("sending list {}  to {}".format(str(temp), data))
 				#send to S1 or S2 depending
-				clientsock.send(ret_obj)
+				c.send(ret_obj)
 				for_sending.task_done()
 			else:
 				logging.debug("QUEUE IS EMPTY\n\n\n")
-				clientsock.send(pickle.dumps([]))
+				c.send(pickle.dumps([]))
 		else:
 			print("\tNeed data! Closing connection with {}\n".format(addr))
 
@@ -174,6 +174,7 @@ class ThreadedServer():
 			logging.debug("\n\n\tPRINTING RECEIVE QUEUE: ", received_queue,"\n\n")
 		else:
 			logging.debug("\tNo request queues from other servers. Business as usual.")
+		time.sleep(2)
 		self.update_nums(received_queue, for_sending)
 		return
 
