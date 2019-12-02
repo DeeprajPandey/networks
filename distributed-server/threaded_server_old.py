@@ -7,17 +7,19 @@ import schedule
 from operator import itemgetter
 import time
 import os
+import queue
 
-for_sending = []
+for_sending = queue.Queue()
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
-IP = "10.1.16.202"
-S1_IP = "10.1.21.15"
+S1_IP = "10.1.16.202"
+IP = "10.1.21.15"
 S2_IP = "10.1.17.123"
 PORT = 8000
 
-unique_server_set = set([])
+# Counter to keep track of the number of times we have sent our request twice
+SENT_CTR = 0
 # TODO: corner case: if s1 requests twice because s3 didn't request
 # check which server is asking (set.unique())
 
@@ -38,15 +40,17 @@ def swap(indices_to_swap):
         return 0
 
 # Use a re-entrant lock in case same thread tries to acquire lock multiple times
-q_lock = threading.RLock()
+sent_counter_lock = threading.RLock()
 
 def update_nums(received):
+    global SENT_CTR
     global nums
     global request_queue
     global for_sending
     if len(request_queue)==0 and len(received)==0:
         return
-    for_sending = request_queue
+    for_sending.put(request_queue)
+    for_sending.put(request_queue)
     # print("\n\nRECEIVED:",request_queue,"\n\n")
     request_queue.extend(received)
     
@@ -54,13 +58,18 @@ def update_nums(received):
     for tup in request_queue:
         returnval = swap(tup[0])
     request_queue=[]
-
+    #print("CHECKING SENT_CTR")
+    #print(SENT_CTR)
+    #if SENT_CTR == 2:
+    #    print("EMPTY\n\n")
+    #    for_sending=[]
+    #    # request_queue=[]
+    #    SENT_CTR = 0
     print("ENDOF update_nums\n\n")
 
 def process_client_request(clientsock, addr):
-    print("Started client thread with PID {}".format(os.getpid()))
+    global SENT_CTR
     global request_queue
-    global for_sending
     
     data = clientsock.recv(1024).decode()
     data=str(data)
@@ -80,30 +89,20 @@ def process_client_request(clientsock, addr):
         # request to swap ith and jth indices
         swap_req = (data, rn)
         # Acquire lock to append to the request queue
-
+        #jjq_lock.acquire()
         # add a  to request queue
         request_queue.append(swap_req)
         print("\tClient swap request added to queue.\n")
-
+        #q_lock.release()
     elif "S" in data:
-        q_lock.acquire()
-        if data not in unique_server_set:
-            unique_server_set.add(data)
-
-            ret_obj = pickle.dumps(for_sending)
-            print("\t" + str(for_sending))
+        if  not for_sending.empty():
+            temp=for_sending.get()
+            ret_obj = pickle.dumps(temp)
+            print("\t sending list" + str(temp))
             #send to S1 or S2 depending
             clientsock.send(ret_obj)
         else:
             clientsock.send(pickle.dumps([]))
-
-        # if it has been sent to two servers already
-        if len(unique_server_set) == 2:
-            print("EMPTY\n\n")
-            for_sending=[]
-            unique_server_set.clear()
-        q_lock.release()
-
     else:
         print("\tNeed data! Closing connection with {}\n".format(addr))
     clientsock.close()
@@ -113,7 +112,6 @@ def process_client_request(clientsock, addr):
 
 #header and server ip
 def sync_mode():
-    print("Starting thread with PID {}".format(os.getpid()))
     toserver1 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
 
     received_queue = list()
@@ -150,7 +148,7 @@ def sync_mode():
     rec2 = toserver2.recv(1024)
     data2 = pickle.loads(rec2)
     if len(data2) > 0:
-        received_queue.extend(data2)
+        received_queue.extend(data1)
 
     toserver2.close()
 

@@ -18,8 +18,8 @@ for_sending = []
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
-IP = "10.1.16.202"
-S1_IP = "10.1.21.15"
+S1_IP = "10.1.16.202"
+IP = "10.1.21.15"
 S2_IP = "10.1.17.123"
 PORT = 8000
 
@@ -43,7 +43,7 @@ class ThreadedServer():
 		sched.start()
 		# to check if there are no items in queue
 		# queue.get() will run forever if tried on empty list
-		concurrent_queue.put(None)
+		#concurrent_queue.put(None)
 		
 		while True:
 			c, addr = self.s.accept()
@@ -85,16 +85,17 @@ class ThreadedServer():
 		global SENT_CTR
 		global request_queue
 		global for_sending
+		global nums
 
 		block_size = 1024
-		thread_id = threading.get_native_id() # get id assigned by kernel
-		logging.debug('T{}:\tConnected to {}'.format(thread_id, addr))
+		#thread_id = threading.current_thread().ident() # get id assigned by kernel
+		logging.debug('\tConnected to {}'.format(addr))
 
 		# this is either of {'CLIENT', 'S1', 'S2'}
 		data = c.recv(block_size).decode()
 
 		if (data == 'CLIENT'):
-			current_nums = " ".join(str(num) for num in self.nums)
+			current_nums = " ".join(str(num) for num in nums)
 			c.send(current_nums.encode())
 
 			ij = c.recv(block_size).decode()
@@ -116,8 +117,6 @@ class ThreadedServer():
 				for_sending = list()
 				clientsock.send(pickle.dumps([]))
 				ctr_queue.put(0)
-
-
 			elif (sent_ctr < 2):
 				ret_obj = pickle.dumps(for_sending)
 				logging.debug("To {}: for_sending: {}".format(data, str(for_sending)))
@@ -131,7 +130,7 @@ class ThreadedServer():
 
 	def sync_mode(self):
 		# print("Starting thread {}".format(threading.current_thread().name))
-		toserver1 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
+		toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 		received_queue = list()
 
@@ -154,7 +153,7 @@ class ThreadedServer():
 		# print("Closed connection with REUEL")
 
 
-		toserver2 = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
+		toserver2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 		header="S2"
 		toserver2.connect((S2_IP,PORT))
