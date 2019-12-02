@@ -13,8 +13,8 @@ for_sending = queue.Queue()
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
-S1_IP = "10.1.16.202"
-IP = "10.1.21.15"
+IP = "10.1.16.202"
+S1_IP = "10.1.21.15"
 S2_IP = "10.1.17.123"
 PORT = 8000
 
@@ -95,13 +95,17 @@ def process_client_request(clientsock, addr):
         print("\tClient swap request added to queue.\n")
         #q_lock.release()
     elif "S" in data:
-        if  not for_sending.empty():
+        if not for_sending.empty():
+            print("Q before popping: {}".format(for_sending.qsize()))
             temp=for_sending.get()
+            print("Q after popping: {}".format(for_sending.qsize()))
             ret_obj = pickle.dumps(temp)
-            print("\t sending list" + str(temp))
+            print("sending list {}  to {}".format(str(temp), data))
             #send to S1 or S2 depending
             clientsock.send(ret_obj)
+            for_sending.task_done()
         else:
+            print("QUEUE IS EMPTY\n\n\n")
             clientsock.send(pickle.dumps([]))
     else:
         print("\tNeed data! Closing connection with {}\n".format(addr))
@@ -129,6 +133,7 @@ def sync_mode():
     rec1 = toserver1.recv(1024)
     data1 = pickle.loads(rec1)
     if len(data1) > 0:
+        print("Received data from Reuel. {}\n".format(data1))
         received_queue = data1
 
     toserver1.close()
@@ -148,7 +153,8 @@ def sync_mode():
     rec2 = toserver2.recv(1024)
     data2 = pickle.loads(rec2)
     if len(data2) > 0:
-        received_queue.extend(data1)
+        print("Received data from Aastha: {}\n".format(data2))
+        received_queue.extend(data2)
 
     toserver2.close()
 

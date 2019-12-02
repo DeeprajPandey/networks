@@ -14,12 +14,11 @@ from operator import itemgetter
 logging.basicConfig(level=logging.DEBUG,
 					format='(%(threadName)-9s) %(message)s',)
 
-for_sending = []
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
-S1_IP = "10.1.16.202"
-IP = "10.1.21.15"
+IP = "10.1.16.202"
+S1_IP = "10.1.21.15"
 S2_IP = "10.1.17.123"
 PORT = 8000
 
@@ -36,20 +35,19 @@ class ThreadedServer():
 	def listen(self):
 		self.s.listen(7)
 		logging.debug('Server is listening...\n\n')
-		concurrent_queue = queue.Queue()
+		for_sending = queue.Queue()
 
-		sched = threading.Thread(target = self.run_forever, args = ())
+		sched = threading.Thread(target = self.run_forever, args = (for_sending,))
 		sched.setName('scheduler')
 		sched.start()
 		# to check if there are no items in queue
 		# queue.get() will run forever if tried on empty list
-		#concurrent_queue.put(None)
 		
 		while True:
 			c, addr = self.s.accept()
 			c.settimeout(60)
 			# start a new thread with the function that handles client
-			ch = threading.Thread(target = self.handleClient,args = (c, addr, concurrent_queue))
+			ch = threading.Thread(target = self.handleClient,args = (c, addr, for_sending))
 			ch.setName('clientHandler')
 			ch.start()
 
@@ -64,16 +62,17 @@ class ThreadedServer():
 		else:
 			return 0
 
-	def update_nums(self, received):
+	def update_nums(self, received, for_sending):
 		global SENT_CTR
 		global nums
 		global request_queue
-		global for_sending
 
 		if len(request_queue)==0 and len(received)==0:
 			return
-		for_sending = request_queue
-		# print("\n\nRECEIVED:",request_queue,"\n\n")
+		
+		for_sending.put(request_queue)
+		for_sending.put(request_queue)
+
 		request_queue.extend(received)
 		
 		request_queue = sorted(request_queue, key=itemgetter(1))
@@ -81,15 +80,15 @@ class ThreadedServer():
 			returnval = swap(tup[0])
 		request_queue=[]
 
-	def handleClient(self, c, addr, ctr_queue):
+
+	def handleClient(self, c, addr, for_sending):
 		global SENT_CTR
 		global request_queue
-		global for_sending
 		global nums
 
 		block_size = 1024
-		#thread_id = threading.current_thread().ident() # get id assigned by kernel
-		logging.debug('\tConnected to {}'.format(addr))
+		# thread_id = threading.current_thread().ident() # get id assigned by kernel
+		logging.debug('Connected to {}'.format(addr))
 
 		# this is either of {'CLIENT', 'S1', 'S2'}
 		data = c.recv(block_size).decode()
@@ -111,24 +110,22 @@ class ThreadedServer():
 			# logging.debug('Added {} to concurrent request queue'.format(swap_req_item))
 			# concurrent_req_queue.task_done()
 		elif ('S' in data):
-			sent_ctr = ctr_queue.get()
-
-			if (sent_ctr == 2):
-				for_sending = list()
-				clientsock.send(pickle.dumps([]))
-				ctr_queue.put(0)
-			elif (sent_ctr < 2):
-				ret_obj = pickle.dumps(for_sending)
-				logging.debug("To {}: for_sending: {}".format(data, str(for_sending)))
+			if not for_sending.empty():
+				logging.debug("Q before popping: {}".format(for_sending.qsize()))
+				temp=for_sending.get()
+				logging.debug("Q after popping: {}".format(for_sending.qsize()))
+				ret_obj = pickle.dumps(temp)
+				logging.debug("sending list {}  to {}".format(str(temp), data))
+				#send to S1 or S2 depending
 				clientsock.send(ret_obj)
-				ctr_queue.put(sent_ctr+1)
-				logging.debug("Incremented SENT_CTR: {}".format(sent_ctr+1))
-
-			ctr_queue.task_done()
+				for_sending.task_done()
+			else:
+				logging.debug("QUEUE IS EMPTY\n\n\n")
+				clientsock.send(pickle.dumps([]))
 		else:
 			print("\tNeed data! Closing connection with {}\n".format(addr))
 
-	def sync_mode(self):
+	def sync_mode(self, for_sending):
 		# print("Starting thread {}".format(threading.current_thread().name))
 		toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -147,10 +144,11 @@ class ThreadedServer():
 		rec1 = toserver1.recv(1024)
 		data1 = pickle.loads(rec1)
 		if len(data1) > 0:
-			received_queue = data1
+			logging.debug("Received from Reuel {}".format(str(data1)))
+			received_queue.extend(data1)
 
 		toserver1.close()
-		# print("Closed connection with REUEL")
+		print("Closed connection with REUEL")
 
 
 		toserver2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -166,7 +164,8 @@ class ThreadedServer():
 		rec2 = toserver2.recv(1024)
 		data2 = pickle.loads(rec2)
 		if len(data2) > 0:
-			received_queue.extend(data1)
+			logging.debug("Received from Aastha {}".format(str(data2)))
+			received_queue.extend(data2)
 
 		toserver2.close()
 
@@ -175,16 +174,16 @@ class ThreadedServer():
 			logging.debug("\n\n\tPRINTING RECEIVE QUEUE: ", received_queue,"\n\n")
 		else:
 			logging.debug("\tNo request queues from other servers. Business as usual.")
-		self.update_nums(received_queue)
+		self.update_nums(received_queue, for_sending)
 		return
 
-	def run_forever(self):
+	def run_forever(self, for_sending):
 		print("Sleeping")
 		time.sleep(2)
-		schedule.every(10).seconds.do(self.sync_mode)
+		schedule.every(10).seconds.do(self.sync_mode, for_sending)
 		print("Calling schedule")
 		while True:
 			schedule.run_pending()
 
 if __name__ == "__main__":
-    ThreadedServer().listen()
+	ThreadedServer().listen()
