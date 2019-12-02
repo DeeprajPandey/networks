@@ -38,7 +38,7 @@ def swap(indices_to_swap):
         return 0
 
 # Use a re-entrant lock in case same thread tries to acquire lock multiple times
-# q_lock = threading.RLock()
+q_lock = threading.RLock()
 
 def update_nums(received):
     global nums
@@ -60,6 +60,7 @@ def update_nums(received):
 def process_client_request(clientsock, addr):
     print("Started client thread with PID {}".format(os.getpid()))
     global request_queue
+    global for_sending
     
     data = clientsock.recv(1024).decode()
     data=str(data)
@@ -85,6 +86,7 @@ def process_client_request(clientsock, addr):
         print("\tClient swap request added to queue.\n")
 
     elif "S" in data:
+        q_lock.acquire()
         if data not in unique_server_set:
             unique_server_set.add(data)
 
@@ -92,12 +94,15 @@ def process_client_request(clientsock, addr):
             print("\t" + str(for_sending))
             #send to S1 or S2 depending
             clientsock.send(ret_obj)
+        else:
+            clientsock.send(pickle.dumps([]))
 
         # if it has been sent to two servers already
         if len(unique_server_set) == 2:
             print("EMPTY\n\n")
             for_sending=[]
             unique_server_set.clear()
+        q_lock.release()
 
     else:
         print("\tNeed data! Closing connection with {}\n".format(addr))
@@ -145,7 +150,7 @@ def sync_mode():
     rec2 = toserver2.recv(1024)
     data2 = pickle.loads(rec2)
     if len(data2) > 0:
-        received_queue.extend(data1)
+        received_queue.extend(data2)
 
     toserver2.close()
 
