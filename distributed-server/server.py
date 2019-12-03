@@ -16,10 +16,11 @@ logging.basicConfig(level=logging.DEBUG,
 
 request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
+for_sending = queue.Queue()
 
 IP = "10.1.16.202"
-S1_IP = "10.1.16.202" #"10.1.21.15"
-S2_IP = "10.1.17.123"
+S1_IP = "10.1.21.15"
+S2_IP = "10.1.56.110"
 PORT = 8001
 
 SENT_CTR = 0
@@ -27,7 +28,7 @@ SENT_CTR = 0
 class ThreadedServer():
 	def __init__(self):
 		self.host = IP
-		self.port = 8000
+		self.port = 8001
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #the SO_REUSEADDR flag tells the kernel to
 		self.s.bind((self.host, self.port))
@@ -35,53 +36,52 @@ class ThreadedServer():
 	def listen(self):
 		self.s.listen(7)
 		logging.debug('Server is listening...\n\n')
-		for_sending = queue.Queue()
 
 
-		### Check if the other two servers are up ###
-		### Issue: because there is no client handler before this,
-		### other servers can't respond with UP ###
-		s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		s1.settimeout(10)
-		s2.settimeout(10)
-		s1_status = ""
-		s2_status = ""
-		conn_tries = 0
-		while (s1_status != "UP" and s2_status != "UP"):
-			# if conn_tries == 2:
-			# 	logging.debug("The other two aren't waking up, exiting...")
-			# 	exit(0)
-			header = "SUP"
+		# ### Check if the other two servers are up ###
+		# ### Issue: because there is no client handler before this,
+		# ### other servers can't respond with UP ###
+		# s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		# s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		# s1.settimeout(3)
+		# s2.settimeout(3)
+		# s1_status = ""
+		# s2_status = ""
+		# conn_tries = 0
+		# while (s1_status != "UP" and s2_status != "UP"):
+		# 	# if conn_tries == 2:
+		# 	# 	logging.debug("The other two aren't waking up, exiting...")
+		# 	# 	exit(0)
+		# 	header = "SUP"
 
-			try:
-				s1.connect((S1_IP,PORT))
-			except socket.timeout:
-				logging.debug("S1 not up")
-			except OSError as e:
-				logging.debug("OS said S1 not up: {}".format(e))
-				time.sleep(5)
-			else:
-				logging.debug("S1 up!")
-				s1.send(header.encode())
-				s1_status = s1.recv(1024).decode()
+		# 	try:
+		# 		s1.connect((S1_IP,PORT))
+		# 	except socket.timeout:
+		# 		logging.debug("S1 not up")
+		# 	except OSError as e:
+		# 		logging.debug("OS said S1 not up: {}".format(e))
+		# 		time.sleep(5)
+		# 	else:
+		# 		logging.debug("S1 up!")
+		# 		# s1.send(header.encode())
+		# 		s1_status = "UP"
 
-			try:
-				s2.connect((S2_IP,PORT))
-			except socket.timeout:
-				logging.debug("S2 not up")
-			except OSError as e:
-				logging.debug("OS said S2 not up: {}".format(e))
-				time.sleep(5)
-			else:
-				logging.debug("S2 up!")
-				s2.send(header.encode())
-				s2_status = s2.recv(1024).decode()
+		# 	try:
+		# 		s2.connect((S2_IP,PORT))
+		# 	except socket.timeout:
+		# 		logging.debug("S2 not up")
+		# 	except OSError as e:
+		# 		logging.debug("OS said S2 not up: {}".format(e))
+		# 		time.sleep(5)
+		# 	else:
+		# 		logging.debug("S2 up!")
+		# 		# s2.send(header.encode())
+		# 		s2_status = "UP"
 
-			conn_tries = conn_tries + 1
+		# 	conn_tries = conn_tries + 1
 
 		# This should start only when all 3 servers are up
-		sched = threading.Thread(target = self.run_forever, args = (for_sending,))
+		sched = threading.Thread(target = self.run_forever, args = ())
 		sched.setName('scheduler')
 		sched.start()
 		# to check if there are no items in queue
@@ -91,14 +91,15 @@ class ThreadedServer():
 			c, addr = self.s.accept()
 			c.settimeout(60)
 			# start a new thread with the function that handles client
-			ch = threading.Thread(target = self.handleClient,args = (c, addr, for_sending))
+			ch = threading.Thread(target = self.handleClient,args = (c, addr))
 			ch.setName('clientHandler')
 			ch.start()
 
-	def handleClient(self, c, addr, for_sending):
+	def handleClient(self, c, addr):
 		global SENT_CTR
 		global request_queue
 		global nums
+		global for_sending
 
 		block_size = 1024
 		# thread_id = threading.current_thread().ident() # get id assigned by kernel
@@ -117,7 +118,7 @@ class ThreadedServer():
 
 			# tuple of ([i, j], timestamp) representing when server received
 			# request to swap ith and jth indices
-			swap_req = (ij, rn)
+			swap_req = (header, (ij, rn))
 			request_queue.append(swap_req)
 			logging.debug("Client swap request added to queue.\n")
 
@@ -141,7 +142,7 @@ class ThreadedServer():
 		else:
 			print("\tNeed data! Closing connection with {}\n".format(addr))
 
-	def sync_mode(self, for_sending):
+	def sync_mode(self):
 		received_queue = list()
 
 		toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -200,13 +201,14 @@ class ThreadedServer():
 			logging.debug("\tClosed connection with AASTHA\n")
 
 		if len(received_queue) > 0:
-			logging.debug("\tReceived requests from other servers\nUpdating local list with all requests")
-			logging.debug("\n\n\tPRINTING RECEIVED QUEUE: ", received_queue,"\n\n")
+			# logging.debug("\tReceived requests from other servers\n")
+			logging.debug("\n\n\tPRINTING RECEIVED QUEUE: {}\n\n".format(str(received_queue)))
 		else:
 			logging.debug("\tNo request queues from other servers. Business as usual.")
 
-		time.sleep(2)
-		self.update_nums(received_queue, for_sending)
+		logging.debug("Sleeping before calling update_nums")
+		time.sleep(5)
+		self.update_nums(received_queue)
 		return
 
 	def swap(self, indices_to_swap):
@@ -220,28 +222,33 @@ class ThreadedServer():
 		else:
 			return 0
 
-	def update_nums(self, received, for_sending):
+	def update_nums(self, received):
 		global SENT_CTR
 		global nums
 		global request_queue
+		global for_sending
 
-		if len(request_queue) == 0 and len(received) == 0:
+		local_rq = request_queue[:]
+		logging.debug("Inside update_nums. Current local_rq is {}".format(str(local_rq)))
+
+
+		if len(local_rq) == 0 and len(received) == 0:
 			return
-		
-		for_sending.put(request_queue)
-		for_sending.put(request_queue)
 
-		request_queue.extend(received)
+		# time.sleep(5)
+		for_sending.put(local_rq)
+		for_sending.put(local_rq)
 		
-		request_queue = sorted(request_queue, key=itemgetter(1))
-		for tup in request_queue:
+		local_rq.extend(received)
+		
+		local_rq = sorted(local_rq, key=itemgetter(1))
+		for tup in local_rq:
 			returnval = self.swap(tup[0])
 		request_queue=[]
 	
-	def run_forever(self, for_sending):
+	def run_forever(self):
 		logging.debug("Waking up...")
-		time.sleep(2)
-		schedule.every(10).seconds.do(self.sync_mode, for_sending)
+		schedule.every(11).seconds.do(self.sync_mode)
 		logging.debug("Calling schedule")
 		while True:
 			schedule.run_pending()

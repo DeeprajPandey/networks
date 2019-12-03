@@ -6,7 +6,7 @@ import random
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
-port = 8000
+port = 8001
 ip_database = {
         "1":"10.1.16.202",
         "2":"10.1.21.15",
