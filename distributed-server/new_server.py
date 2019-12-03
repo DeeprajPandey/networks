@@ -18,6 +18,7 @@ IP = "10.1.16.202"
 S1_IP = "10.1.21.15"
 S2_IP = "10.1.56.110"
 PORT = 8001
+nums = list([3, 9, 1, 8, 10, 7, 2, 5, 6, 4])
 
 class ThreadedServer():
 	def __init__(self):
@@ -51,7 +52,7 @@ class ThreadedServer():
 		logging.debug('Connected to client {}'.format(addr))
 
 		# data = ('SERVER', ([i, j], timestamp))
-		# data = ('CLIENT', 'i j')
+		# data = ('CLIENT', 'i i')
 		data_obj = c.recv(block_size)
 		data = pickle.loads(data_obj)
 		header = data[0]
@@ -61,7 +62,7 @@ class ThreadedServer():
 			current_nums = " ".join(str(num) for num in nums)
 			c.send(current_nums.encode())
 
-			ij = data[1]
+			ij = c.recv(block_size).decode()
 			ij = ij.split(" ")
 			rn = datetime.now().timestamp()
 
@@ -92,10 +93,10 @@ class ThreadedServer():
 				logging.debug("\tClosed connection with REUEL\n")
 
 			try:
-				toserver2.connect((S1_IP,PORT))
+				toserver2.connect((S2_IP,PORT))
 
 			except socket.timeout as e:
-				logging.debug("{} connecting to Reuel, check if he's sleeping.\n".format(e))
+				logging.debug("{} connecting to Aastha, check if she's sleeping.\n".format(e))
 
 			else:
 				logging.debug("Sending client data to Aastha")
@@ -105,10 +106,11 @@ class ThreadedServer():
 
 		elif ('S' in header):
 			logging.debug("Received data from {}. Adding to queue.".format(header))
-			new_req = pickle.loads(data[1])
+			new_req = data[1]
 			requests_q.put(new_req)
 		else:
 			logging.debug("\tNeed data! Closing connection with {}\n".format(addr))
+		return
 
 	def update_nums(self, requests_q):
 		if requests_q.empty():
@@ -122,10 +124,12 @@ class ThreadedServer():
 		requests_q.task_done()
 		logging.debug("Let go of queue, starting swap.")
 		logging.debug("Size of the queue (should be 0) is {}".format(requests_q.qsize()))
+		logging.debug("Local copy of queue is {}".format(str(all_requests)))
 
 		all_requests = sorted(all_requests, key=itemgetter(1))
 		for tup in all_requests:
 			returnval = self.swap(tup[0])
+		logging.debug(str(nums))
 		logging.debug("End of update_nums.")
 
 	def run_forever(self, requests_q):

@@ -1,6 +1,7 @@
 import socket
 import string 
-import random 
+import random
+import pickle
 
 # create an INET, STREAMing socket
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -10,7 +11,7 @@ port = 8001
 ip_database = {
         "1":"10.1.16.202",
         "2":"10.1.21.15",
-        "3":"10.1.17.123"
+        "3":"10.1.56.110"
 } 
 # clientsocket.connect(("10.1.17.123", 8728))
 
@@ -25,7 +26,9 @@ while True:
 		break
 	ip = ip_database.get(choice, "none")
 	clientsocket.connect((ip, port))
-	clientsocket.send("CLIENT".encode())
+	tosend = ("C", "0 0")
+	clientsocket.send(pickle.dumps(tosend))
+
 	print("Current list:\n", clientsocket.recv(1024).decode())
 	# print("Enter tuple\n")
 	# i, j = raw_input().split()
