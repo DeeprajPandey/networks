@@ -11,33 +11,44 @@ import schedule
 from datetime import datetime
 from operator import itemgetter
 
-logging.basicConfig(level=logging.DEBUG,
-					format='(%(threadName)-9s) %(message)s',)
+### Important print to log lines: 145, 157, 164
+
+### IP: this server's IP ###
+### S1_IP, S2_IP: other two servers ###
+IP = "10.1.16.202"
+S1_IP = "10.1.21.15"
+S2_IP = "10.1.17.123"
+PORT = 49990
+
 ## lower the number, lower is priority
 # 0 = min. priority
 # 0 < 1 < 2 ...
 client_priority_dict = {
-	"10.1.56.110": 1,
-	"10.1.21.15": 2
+	"10.1.16.202": 1,
+	"10.1.17.123": 2
 }
 
-IP = "10.1.16.202"
-S1_IP = "10.1.21.15"
-S2_IP = "10.1.56.110"
-PORT = 8001
 nums = list([3, 9, 1, 8, 10, 7, 2, 5, 6, 4])
 
+# when logging, also print the thread name
+logging.basicConfig(level=logging.DEBUG,
+					format='(%(threadName)-9s) %(message)s',)
+# turn off schedule's logger
+logging.getLogger('schedule').propagate = False
+
+# multithreaded server class
 class ThreadedServer():
 	def __init__(self):
 		self.host = IP
-		self.port = 8001
+		self.port = 49990
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #the SO_REUSEADDR flag tells the kernel to
 		self.s.bind((self.host, self.port))
 
+	# start listening on the port
 	def listen(self):
 		self.s.listen(7)
-		logging.debug('Server is listening...\n\n')
+		logging.debug('Server is listening...')
 		requests = queue.Queue()
 
 		# This should start only when all 3 servers are up
@@ -65,7 +76,7 @@ class ThreadedServer():
 		header = data[0]
 
 		if (header == 'C'):
-			logging.debug("Received data from client.")
+#			logging.debug("Received data from client.")
 			current_nums = " ".join(str(num) for num in nums)
 			c.send(current_nums.encode())
 
@@ -92,25 +103,29 @@ class ThreadedServer():
 				toserver1.connect((S1_IP,PORT))
 
 			except socket.timeout as e:
-				logging.debug("{} connecting to Reuel, check if he's sleeping.\n".format(e))
+				logging.debug("\n\t{} while connecting to S1".format(e))
+			except ConnectionRefusedError as e:
+				logging.debug("\n\t{} while connecting to S1".format(e))
 
 			else:
-				logging.debug("Sending client data to Reuel")
+#				logging.debug("Sending client data to Reuel")
 				toserver1.send(pickle.dumps(tosend))
 				toserver1.close()
-				logging.debug("\tClosed connection with REUEL\n")
+#				logging.debug("\tClosed connection with Reuel\n")
 
 			try:
 				toserver2.connect((S2_IP,PORT))
 
 			except socket.timeout as e:
-				logging.debug("{} connecting to Aastha, check if she's sleeping.\n".format(e))
+				logging.debug("\n\t{} while connecting to S2".format(e))
+			except ConnectionRefusedError as e:
+				logging.debug("\n\t{} while connecting to S2".format(e))
 
 			else:
-				logging.debug("Sending client data to Aastha")
+#				logging.debug("Sending client data to Aastha")
 				toserver2.send(pickle.dumps(tosend))
 				toserver2.close()
-				logging.debug("\tClosed connection with AASTHA\n")
+#				logging.debug("\tClosed connection with Aastha\n")
 
 		elif ('S' in header):
 			logging.debug("Received data from {}. Adding to queue.".format(header))
@@ -128,32 +143,32 @@ class ThreadedServer():
 			logging.debug("\tNeed data! Closing connection with {}\n".format(addr))
 		return
 
+	# updates this server's copy of the list of numbers
 	def update_nums(self, requests_q):
 		if requests_q.empty():
-			logging.debug("Request queue is empty, exiting update_nums.")
+#			logging.debug("Request queue is empty. Not updating list.")
 			return
-		logging.debug("Starting update_nums")
 		all_requests = list()
 		
 		while (not requests_q.empty()):
 			all_requests.append(requests_q.get())
 		requests_q.task_done()
-		logging.debug("Let go of queue, starting swap.")
-		logging.debug("Size of the queue (should be 0) is {}".format(requests_q.qsize()))
-		logging.debug("Local copy of queue is {}".format(str(all_requests)))
+#		logging.debug("Size of the queue (should be 0) is {}".format(requests_q.qsize()))
+		logging.debug("Request queue to be processed: {}".format(str(all_requests)))
 
 
 		all_requests = sorted(all_requests, key=itemgetter(1))
 		all_requests = sorted(all_requests, key=itemgetter(2), reverse = True)
 		for tup in all_requests:
 			returnval = self.swap(tup[0])
-		logging.debug(str(nums))
-		logging.debug("End of update_nums.")
+		logging.debug("Updated list of nums: {}\n".format(str(nums)))
+#		logging.debug("End of update_nums.")
 
+	# calls the scheduler 
 	def run_forever(self, requests_q):
-		logging.debug("Waking up...")
+		logging.debug("Waking up...\n")
 		schedule.every(10).seconds.do(self.update_nums, requests_q)
-		logging.debug("Calling schedule")
+#		logging.debug("Running in background")
 		while True:
 			schedule.run_pending()
 

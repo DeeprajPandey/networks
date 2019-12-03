@@ -1,20 +1,16 @@
 import socket
 import pickle
 
-# create an INET, STREAMing socket
-
-
-port = 8001
+### Update the IP adresses here as well ###
 ip_database = {
         "1":"10.1.16.202",
         "2":"10.1.21.15",
-        "3":"10.1.56.110"
-} 
-# clientsocket.connect(("10.1.17.123", 8728))
+        "3":"10.1.17.123"
+}
+port = 49990
 
 
 while True:
-	# print(clientsocket.recv(1024).decode())
 	print(ip_database)
 	print("Enter which server you want to connect to (1, 2, 3, or 4 for exit)\n")
 	choice = input("Enter choice: ")
