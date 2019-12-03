@@ -67,7 +67,7 @@ class ThreadedServer():
 		global nums
 		global request_queue
 
-		if len(request_queue)==0 and len(received)==0:
+		if len(request_queue) == 0 and len(received) == 0:
 			return
 		
 		for_sending.put(request_queue)
@@ -126,63 +126,78 @@ class ThreadedServer():
 			print("\tNeed data! Closing connection with {}\n".format(addr))
 
 	def sync_mode(self, for_sending):
-		# print("Starting thread {}".format(threading.current_thread().name))
-		toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 		received_queue = list()
 
-		header="S1"
-		toserver1.connect((S1_IP,PORT))
-		logging.debug("\tConnected to REUEL\n")
-		#send identifying that i am a server
-		toserver1.send(header.encode())
-		# print("Request sent to REUEL")
-
-
-
-		#receive the requestq
-		rec1 = toserver1.recv(1024)
-		data1 = pickle.loads(rec1)
-		if len(data1) > 0:
-			logging.debug("Received from Reuel {}".format(str(data1)))
-			received_queue.extend(data1)
-
-		toserver1.close()
-		print("Closed connection with REUEL")
-
-
+		toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		toserver2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		toserver1.settimeout(3)
+		toserver2.settimeout(3)
 
-		header="S2"
-		toserver2.connect((S2_IP,PORT))
-		logging.debug("\tConnected to AASTHA")
-		#send identifying that i am a server
-		toserver2.send(header.encode())
-		# print("Request sent to AASTHA")
+		header = "S1"
 
-		#receive the requestq
-		rec2 = toserver2.recv(1024)
-		data2 = pickle.loads(rec2)
-		if len(data2) > 0:
-			logging.debug("Received from Aastha {}".format(str(data2)))
-			received_queue.extend(data2)
+		try:
+			toserver1.connect((S1_IP,PORT))
 
-		toserver2.close()
+		except socket.timeout as e:
+			logging.debug("{} connecting to Reuel, check if he's sleeping.\n".format(e))
+
+		else:
+			logging.debug("\tConnected to REUEL\n")
+			
+			# send identifying that i am a server
+			toserver1.send(header.encode())
+
+			# receive the requestq
+			s1_q_obj = toserver1.recv(1024)
+			s1_queue = pickle.loads(s1_q_obj)
+
+			if len(s1_queue) > 0:
+				logging.debug("Received {} from Reuel".format(str(s1_queue)))
+				received_queue.extend(s1_queue)
+
+			toserver1.close()
+			logging.debug("\tClosed connection with REUEL\n")
+
+
+		header = "S2"
+
+		try:
+			toserver2.connect((S2_IP,PORT))
+
+		except socket.timeout as e:
+			logging.debug("{} connecting to Aastha, check if she's sleeping.\n".format(e))
+
+		else:
+			logging.debug("\tConnected to AASTHA\n")
+			
+			#send identifying that i am a server
+			toserver2.send(header.encode())
+
+			#receive the requestq
+			s2_q_obj = toserver2.recv(1024)
+			s2_queue = pickle.loads(s2_q_obj)
+			if len(s2_queue) > 0:
+				logging.debug("Received {} from Aastha".format(str(s2_queue)))
+				received_queue.extend(s2_queue)
+
+			toserver2.close()
+			logging.debug("\tClosed connection with AASTHA\n")
 
 		if len(received_queue) > 0:
-			logging.debug("\tReceived requests from other servers.\nUpdating local list with all requests")
-			logging.debug("\n\n\tPRINTING RECEIVE QUEUE: ", received_queue,"\n\n")
+			logging.debug("\tReceived requests from other servers\nUpdating local list with all requests")
+			logging.debug("\n\n\tPRINTING RECEIVED QUEUE: ", received_queue,"\n\n")
 		else:
 			logging.debug("\tNo request queues from other servers. Business as usual.")
+
 		time.sleep(2)
 		self.update_nums(received_queue, for_sending)
 		return
 
 	def run_forever(self, for_sending):
-		print("Sleeping")
+		logging.debug("Waking up...")
 		time.sleep(2)
 		schedule.every(10).seconds.do(self.sync_mode, for_sending)
-		print("Calling schedule")
+		logging.debug("Calling schedule")
 		while True:
 			schedule.run_pending()
 
