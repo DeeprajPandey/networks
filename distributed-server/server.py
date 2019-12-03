@@ -13,17 +13,19 @@ from operator import itemgetter
 
 logging.basicConfig(level=logging.DEBUG,
 					format='(%(threadName)-9s) %(message)s',)
-
-request_queue = []
-nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
-for_sending = queue.Queue()
+## lower the number, lower is priority
+# 0 = min. priority
+# 0 < 1 < 2 ...
+client_priority_dict = {
+	"10.1.56.110": 1,
+	"10.1.21.15": 2
+}
 
 IP = "10.1.16.202"
 S1_IP = "10.1.21.15"
 S2_IP = "10.1.56.110"
 PORT = 8001
-
-SENT_CTR = 0
+nums = list([3, 9, 1, 8, 10, 7, 2, 5, 6, 4])
 
 class ThreadedServer():
 	def __init__(self):
@@ -36,79 +38,34 @@ class ThreadedServer():
 	def listen(self):
 		self.s.listen(7)
 		logging.debug('Server is listening...\n\n')
-
-
-		# ### Check if the other two servers are up ###
-		# ### Issue: because there is no client handler before this,
-		# ### other servers can't respond with UP ###
-		# s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		# s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		# s1.settimeout(3)
-		# s2.settimeout(3)
-		# s1_status = ""
-		# s2_status = ""
-		# conn_tries = 0
-		# while (s1_status != "UP" and s2_status != "UP"):
-		# 	# if conn_tries == 2:
-		# 	# 	logging.debug("The other two aren't waking up, exiting...")
-		# 	# 	exit(0)
-		# 	header = "SUP"
-
-		# 	try:
-		# 		s1.connect((S1_IP,PORT))
-		# 	except socket.timeout:
-		# 		logging.debug("S1 not up")
-		# 	except OSError as e:
-		# 		logging.debug("OS said S1 not up: {}".format(e))
-		# 		time.sleep(5)
-		# 	else:
-		# 		logging.debug("S1 up!")
-		# 		# s1.send(header.encode())
-		# 		s1_status = "UP"
-
-		# 	try:
-		# 		s2.connect((S2_IP,PORT))
-		# 	except socket.timeout:
-		# 		logging.debug("S2 not up")
-		# 	except OSError as e:
-		# 		logging.debug("OS said S2 not up: {}".format(e))
-		# 		time.sleep(5)
-		# 	else:
-		# 		logging.debug("S2 up!")
-		# 		# s2.send(header.encode())
-		# 		s2_status = "UP"
-
-		# 	conn_tries = conn_tries + 1
+		requests = queue.Queue()
 
 		# This should start only when all 3 servers are up
-		sched = threading.Thread(target = self.run_forever, args = ())
+		sched = threading.Thread(target = self.run_forever, args = (requests,))
 		sched.setName('scheduler')
 		sched.start()
-		# to check if there are no items in queue
-		# queue.get() will run forever if tried on empty list
 		
 		while True:
 			c, addr = self.s.accept()
 			c.settimeout(60)
 			# start a new thread with the function that handles client
-			ch = threading.Thread(target = self.handleClient,args = (c, addr))
+			ch = threading.Thread(target = self.handleClient,args = (c, addr, requests))
 			ch.setName('clientHandler')
 			ch.start()
 
-	def handleClient(self, c, addr):
-		global SENT_CTR
-		global request_queue
-		global nums
-		global for_sending
-
+	def handleClient(self, c, addr, requests_q):
 		block_size = 1024
 		# thread_id = threading.current_thread().ident() # get id assigned by kernel
-		logging.debug('Connected to {}'.format(addr))
+		logging.debug('Connected to client {}'.format(addr))
 
-		# this is either of {'CLIENT', 'S1', 'S2'}
-		data = c.recv(block_size).decode()
+		# data = ('SERVER', ([i, j], timestamp, addr))
+		# data = ('CLIENT', 'i i')
+		data_obj = c.recv(block_size)
+		data = pickle.loads(data_obj)
+		header = data[0]
 
-		if (data == 'CLIENT'):
+		if (header == 'C'):
+			logging.debug("Received data from client.")
 			current_nums = " ".join(str(num) for num in nums)
 			c.send(current_nums.encode())
 
@@ -116,100 +73,89 @@ class ThreadedServer():
 			ij = ij.split(" ")
 			rn = datetime.now().timestamp()
 
-			# tuple of ([i, j], timestamp) representing when server received
-			# request to swap ith and jth indices
-			swap_req = (header, (ij, rn))
-			request_queue.append(swap_req)
-			logging.debug("Client swap request added to queue.\n")
+			priority = self.get_priority(str(addr))
+			# tuple of ([i, j], timestamp, priority) goes to request queue
+			swap_req = (ij, rn, priority)
+			requests_q.put(swap_req)
 
-		elif ('S' in data):
-			if not for_sending.empty():
-				logging.debug("Q before popping: {}".format(for_sending.qsize()))
-				temp=for_sending.get()
-				logging.debug("Q after popping: {}".format(for_sending.qsize()))
-				ret_obj = pickle.dumps(temp)
-				logging.debug("sending list {}  to {}".format(str(temp), data))
-				#send to S1 or S2 depending
-				c.send(ret_obj)
-				for_sending.task_done()
+			# but tuple of ([i, j], timestamp, client_ip_address) goes to other servers
+			swap_req = (ij, rn, str(addr))
+			# send this to S1 and S2
+			tosend = ("SD", swap_req)
+			
+			toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			toserver2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			toserver1.settimeout(3)
+			toserver2.settimeout(3)
+
+			try:
+				toserver1.connect((S1_IP,PORT))
+
+			except socket.timeout as e:
+				logging.debug("{} connecting to Reuel, check if he's sleeping.\n".format(e))
+
 			else:
-				logging.debug("QUEUE IS EMPTY\n\n\n")
-				c.send(pickle.dumps([]))
+				logging.debug("Sending client data to Reuel")
+				toserver1.send(pickle.dumps(tosend))
+				toserver1.close()
+				logging.debug("\tClosed connection with REUEL\n")
 
-		elif (data == 'SUP'):
-			c.send("UP".encode())
+			try:
+				toserver2.connect((S2_IP,PORT))
 
+			except socket.timeout as e:
+				logging.debug("{} connecting to Aastha, check if she's sleeping.\n".format(e))
+
+			else:
+				logging.debug("Sending client data to Aastha")
+				toserver2.send(pickle.dumps(tosend))
+				toserver2.close()
+				logging.debug("\tClosed connection with AASTHA\n")
+
+		elif ('S' in header):
+			logging.debug("Received data from {}. Adding to queue.".format(header))
+			# new_req is ([i, j], timestamp, client_ip_addr)
+			recv_req = data[1]
+
+			# get the priority of this ip
+			new_priority = self.get_priority(recv_req[2])
+
+			# we can't change recv_req[2] as it's a tuple
+			# so, create a new tuple and put the priority instead of IP
+			new_req = (recv_req[0], recv_req[1], new_priority)
+			requests_q.put(new_req)
 		else:
-			print("\tNeed data! Closing connection with {}\n".format(addr))
-
-	def sync_mode(self):
-		received_queue = list()
-
-		toserver1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		toserver2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		toserver1.settimeout(3)
-		toserver2.settimeout(3)
-
-		header = "S1"
-
-		try:
-			toserver1.connect((S1_IP,PORT))
-
-		except socket.timeout as e:
-			logging.debug("{} connecting to Reuel, check if he's sleeping.\n".format(e))
-
-		else:
-			logging.debug("\tConnected to REUEL\n")
-			
-			# send identifying that i am a server
-			toserver1.send(header.encode())
-
-			# receive the requestq
-			s1_q_obj = toserver1.recv(1024)
-			s1_queue = pickle.loads(s1_q_obj)
-
-			if len(s1_queue) > 0:
-				logging.debug("Received {} from Reuel".format(str(s1_queue)))
-				received_queue.extend(s1_queue)
-
-			toserver1.close()
-			logging.debug("\tClosed connection with REUEL\n")
-
-
-		header = "S2"
-
-		try:
-			toserver2.connect((S2_IP,PORT))
-
-		except socket.timeout as e:
-			logging.debug("{} connecting to Aastha, check if she's sleeping.\n".format(e))
-
-		else:
-			logging.debug("\tConnected to AASTHA\n")
-			
-			#send identifying that i am a server
-			toserver2.send(header.encode())
-
-			#receive the requestq
-			s2_q_obj = toserver2.recv(1024)
-			s2_queue = pickle.loads(s2_q_obj)
-			if len(s2_queue) > 0:
-				logging.debug("Received {} from Aastha".format(str(s2_queue)))
-				received_queue.extend(s2_queue)
-
-			toserver2.close()
-			logging.debug("\tClosed connection with AASTHA\n")
-
-		if len(received_queue) > 0:
-			# logging.debug("\tReceived requests from other servers\n")
-			logging.debug("\n\n\tPRINTING RECEIVED QUEUE: {}\n\n".format(str(received_queue)))
-		else:
-			logging.debug("\tNo request queues from other servers. Business as usual.")
-
-		logging.debug("Sleeping before calling update_nums")
-		time.sleep(5)
-		self.update_nums(received_queue)
+			logging.debug("\tNeed data! Closing connection with {}\n".format(addr))
 		return
+
+	def update_nums(self, requests_q):
+		if requests_q.empty():
+			logging.debug("Request queue is empty, exiting update_nums.")
+			return
+		logging.debug("Starting update_nums")
+		all_requests = list()
+		
+		while (not requests_q.empty()):
+			all_requests.append(requests_q.get())
+		requests_q.task_done()
+		logging.debug("Let go of queue, starting swap.")
+		logging.debug("Size of the queue (should be 0) is {}".format(requests_q.qsize()))
+		logging.debug("Local copy of queue is {}".format(str(all_requests)))
+
+
+		all_requests = sorted(all_requests, key=itemgetter(1))
+		all_requests = sorted(all_requests, key=itemgetter(2), reverse = True)
+		for tup in all_requests:
+			returnval = self.swap(tup[0])
+		logging.debug(str(nums))
+		logging.debug("End of update_nums.")
+
+	def run_forever(self, requests_q):
+		logging.debug("Waking up...")
+		schedule.every(10).seconds.do(self.update_nums, requests_q)
+		logging.debug("Calling schedule")
+		while True:
+			schedule.run_pending()
 
 	def swap(self, indices_to_swap):
 		global nums
@@ -222,36 +168,15 @@ class ThreadedServer():
 		else:
 			return 0
 
-	def update_nums(self, received):
-		global SENT_CTR
-		global nums
-		global request_queue
-		global for_sending
-
-		local_rq = request_queue[:]
-		logging.debug("Inside update_nums. Current local_rq is {}".format(str(local_rq)))
-
-
-		if len(local_rq) == 0 and len(received) == 0:
-			return
-
-		# time.sleep(5)
-		for_sending.put(local_rq)
-		for_sending.put(local_rq)
-		
-		local_rq.extend(received)
-		
-		local_rq = sorted(local_rq, key=itemgetter(1))
-		for tup in local_rq:
-			returnval = self.swap(tup[0])
-		request_queue=[]
-	
-	def run_forever(self):
-		logging.debug("Waking up...")
-		schedule.every(11).seconds.do(self.sync_mode)
-		logging.debug("Calling schedule")
-		while True:
-			schedule.run_pending()
+	### returns the agreed priority (common to all servers) of a client_ip
+	def get_priority(self, client_ip):
+		# if the client ip is registered on the server's priority dictionary
+		if (client_ip in client_priority_dict.keys()):
+			# priority is whatever was agreed upon
+			return client_priority_dict[client_ip]
+		else:
+			# priority is lowest (0)
+			return 0
 
 if __name__ == "__main__":
 	ThreadedServer().listen()
