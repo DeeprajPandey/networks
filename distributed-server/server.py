@@ -18,9 +18,9 @@ request_queue = []
 nums = list([3, 9, 6, 1, 10, 5, 2, 7, 4, 8])
 
 IP = "10.1.16.202"
-S1_IP = "10.1.21.15"
+S1_IP = "10.1.16.202" #"10.1.21.15"
 S2_IP = "10.1.17.123"
-PORT = 8000
+PORT = 8001
 
 SENT_CTR = 0
 
@@ -37,6 +37,50 @@ class ThreadedServer():
 		logging.debug('Server is listening...\n\n')
 		for_sending = queue.Queue()
 
+
+		### Check if the other two servers are up ###
+		### Issue: because there is no client handler before this,
+		### other servers can't respond with UP ###
+		s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s1.settimeout(10)
+		s2.settimeout(10)
+		s1_status = ""
+		s2_status = ""
+		conn_tries = 0
+		while (s1_status != "UP" and s2_status != "UP"):
+			# if conn_tries == 2:
+			# 	logging.debug("The other two aren't waking up, exiting...")
+			# 	exit(0)
+			header = "SUP"
+
+			try:
+				s1.connect((S1_IP,PORT))
+			except socket.timeout:
+				logging.debug("S1 not up")
+			except OSError as e:
+				logging.debug("OS said S1 not up: {}".format(e))
+				time.sleep(5)
+			else:
+				logging.debug("S1 up!")
+				s1.send(header.encode())
+				s1_status = s1.recv(1024).decode()
+
+			try:
+				s2.connect((S2_IP,PORT))
+			except socket.timeout:
+				logging.debug("S2 not up")
+			except OSError as e:
+				logging.debug("OS said S2 not up: {}".format(e))
+				time.sleep(5)
+			else:
+				logging.debug("S2 up!")
+				s2.send(header.encode())
+				s2_status = s2.recv(1024).decode()
+
+			conn_tries = conn_tries + 1
+
+		# This should start only when all 3 servers are up
 		sched = threading.Thread(target = self.run_forever, args = (for_sending,))
 		sched.setName('scheduler')
 		sched.start()
@@ -50,36 +94,6 @@ class ThreadedServer():
 			ch = threading.Thread(target = self.handleClient,args = (c, addr, for_sending))
 			ch.setName('clientHandler')
 			ch.start()
-
-	def swap(self, indices_to_swap):
-		global nums
-		i = int(indices_to_swap[0])
-		j = int(indices_to_swap[1])
-		if i < 10 and j < 10:
-			nums[i], nums[j] = nums[j], nums[i]
-			# successful swap, valid indi
-			return 1
-		else:
-			return 0
-
-	def update_nums(self, received, for_sending):
-		global SENT_CTR
-		global nums
-		global request_queue
-
-		if len(request_queue) == 0 and len(received) == 0:
-			return
-		
-		for_sending.put(request_queue)
-		for_sending.put(request_queue)
-
-		request_queue.extend(received)
-		
-		request_queue = sorted(request_queue, key=itemgetter(1))
-		for tup in request_queue:
-			returnval = self.swap(tup[0])
-		request_queue=[]
-
 
 	def handleClient(self, c, addr, for_sending):
 		global SENT_CTR
@@ -106,9 +120,7 @@ class ThreadedServer():
 			swap_req = (ij, rn)
 			request_queue.append(swap_req)
 			logging.debug("Client swap request added to queue.\n")
-			# concurrent_req_queue.put(swap_req_item)
-			# logging.debug('Added {} to concurrent request queue'.format(swap_req_item))
-			# concurrent_req_queue.task_done()
+
 		elif ('S' in data):
 			if not for_sending.empty():
 				logging.debug("Q before popping: {}".format(for_sending.qsize()))
@@ -122,6 +134,10 @@ class ThreadedServer():
 			else:
 				logging.debug("QUEUE IS EMPTY\n\n\n")
 				c.send(pickle.dumps([]))
+
+		elif (data == 'SUP'):
+			c.send("UP".encode())
+
 		else:
 			print("\tNeed data! Closing connection with {}\n".format(addr))
 
@@ -193,6 +209,35 @@ class ThreadedServer():
 		self.update_nums(received_queue, for_sending)
 		return
 
+	def swap(self, indices_to_swap):
+		global nums
+		i = int(indices_to_swap[0])
+		j = int(indices_to_swap[1])
+		if i < 10 and j < 10:
+			nums[i], nums[j] = nums[j], nums[i]
+			# successful swap, valid indi
+			return 1
+		else:
+			return 0
+
+	def update_nums(self, received, for_sending):
+		global SENT_CTR
+		global nums
+		global request_queue
+
+		if len(request_queue) == 0 and len(received) == 0:
+			return
+		
+		for_sending.put(request_queue)
+		for_sending.put(request_queue)
+
+		request_queue.extend(received)
+		
+		request_queue = sorted(request_queue, key=itemgetter(1))
+		for tup in request_queue:
+			returnval = self.swap(tup[0])
+		request_queue=[]
+	
 	def run_forever(self, for_sending):
 		logging.debug("Waking up...")
 		time.sleep(2)
