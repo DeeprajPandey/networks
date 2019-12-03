@@ -1,6 +1,4 @@
 import socket
-import string 
-import random
 import pickle
 
 # create an INET, STREAMing socket
